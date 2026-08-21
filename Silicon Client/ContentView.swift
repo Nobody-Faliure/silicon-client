@@ -1,24 +1,26 @@
-//
-//  ContentView.swift
-//  Silicon Client
-//
-//  Created by Yuan Sun on 8/20/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
+
+	@State private var isPlaying = false
+
+	var body: some View {
+		if isPlaying {
+			GameView()
+		} else {
+			VStack {
+				Text("Silicon Client")
+				Text("0.0.1-dev.1")
+
+				Button("Singleplayer") {
+					isPlaying = true
+				}
+			}
+			.padding()
+		}
+	}
 }
 
 #Preview {
-    ContentView()
+	ContentView()
 }

@@ -4,7 +4,12 @@ import MetalKit
 struct MetalView: NSViewRepresentable {
 	// Keeps the renderer alive
 	class Coordinator {
-		let renderer = Renderer()
+		let renderer:  Renderer
+		let input = Input()
+		
+		init() {
+				renderer = Renderer(input: input)
+			}
 	}
 	
 	// Teaches swift how to use a coordinator
@@ -14,7 +19,7 @@ struct MetalView: NSViewRepresentable {
 	
 	// Creates the Metal view
 	func makeNSView(context: Context) -> MTKView {
-		let view = MTKView()
+		let view = SiliconMTKView(input: context.coordinator.input)
 		let renderer = context.coordinator.renderer // gets the renderer stored in the coordinator
 		view.device = renderer.device
 		view.delegate = renderer

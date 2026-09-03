@@ -19,12 +19,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let vertexBuffer: MTLBuffer
 	let pipelineState: MTLRenderPipelineState
 	
+	// The input
+	let input: Input
+	
 	// Projection adds perspective; viewMatrix will later represent the camera
 	var projectionMatrix: simd_float4x4 = matrix_identity_float4x4
 	var viewMatrix: simd_float4x4 = matrix_identity_float4x4
+	var cameraPosition = SIMD3<Float>(0, 0, 0)
+	var cameraYaw: Float = 0
 	
 	// Creates the renderer's Metal resources when the object is initialized
-	override init() {
+	init(input: Input) {
 		self.device = MTLCreateSystemDefaultDevice()!
 		
 		// Load the Metal shaders compiled from Shaders.metal
@@ -49,11 +54,32 @@ final class Renderer: NSObject, MTKViewDelegate {
 			length: vertices.count * MemoryLayout<SIMD3<Float>>.stride
 		)!
 		
+		self.input = input
+		
 		// Run NSObject's initializer after our stored properties are ready
 		super.init()
 	}
 	
 	func draw(in view: MTKView) {
+		let forward = SIMD3<Float>(
+			sin(cameraYaw),
+			0,
+			cos(cameraYaw)
+		)
+	
+		let moveSpeed: Float = 0.01
+		if input.wPressed {
+			cameraPosition.z += moveSpeed
+		}
+		if input.sPressed {
+			cameraPosition.z -= moveSpeed
+		}
+		if input.aPressed {
+			cameraPosition.x -= moveSpeed
+		}
+		if input.dPressed {
+			cameraPosition.x += moveSpeed
+		}
 		
 		// Get this frame's render target and set the background clear color
 		guard let renderPassDescriptor = view.currentRenderPassDescriptor else { return }
@@ -78,6 +104,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 									index: 1
 		)
 		
+		// Send the camera matrix to buffer(2) in the vertex shader
+		viewMatrix.columns.3 = SIMD4<Float>(-cameraPosition.x, -cameraPosition.y, -cameraPosition.z, 1)
 		var cameraMatrix = viewMatrix
 		renderEncoder.setVertexBytes(&cameraMatrix,
 									 length: MemoryLayout<simd_float4x4>.stride,

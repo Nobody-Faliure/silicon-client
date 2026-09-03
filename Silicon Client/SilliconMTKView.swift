@@ -1,4 +1,5 @@
 import MetalKit
+import CoreGraphics
 
 final class SiliconMTKView: MTKView {
 	let input: Input
@@ -17,6 +18,10 @@ final class SiliconMTKView: MTKView {
 	override func viewDidMoveToWindow() {
 		super.viewDidMoveToWindow()
 		window?.makeFirstResponder(self)
+		window?.acceptsMouseMovedEvents = true
+		
+		CGAssociateMouseAndMouseCursorPosition(0)
+		NSCursor.hide()
 	}
 	
 	override func keyDown(with event: NSEvent) {
@@ -31,5 +36,10 @@ final class SiliconMTKView: MTKView {
 		if event.keyCode == 0 { input.aPressed = false }
 		if event.keyCode == 1 { input.sPressed = false }
 		if event.keyCode == 2 { input.dPressed = false }
+	}
+	
+	override func mouseMoved(with event: NSEvent) {
+		input.mouseDeltaX += Float(event.deltaX)
+		input.mouseDeltaY += Float(event.deltaY)
 	}
 }

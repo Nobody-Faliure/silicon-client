@@ -66,19 +66,25 @@ final class Renderer: NSObject, MTKViewDelegate {
 			0,
 			cos(cameraYaw)
 		)
+		
+		let right = SIMD3<Float>(
+			cos(cameraYaw),
+			0,
+			-sin(cameraYaw)
+		)
 	
 		let moveSpeed: Float = 0.01
 		if input.wPressed {
-			cameraPosition.z += moveSpeed
+			cameraPosition += forward * moveSpeed
 		}
 		if input.sPressed {
-			cameraPosition.z -= moveSpeed
+			cameraPosition -= forward * moveSpeed
 		}
 		if input.aPressed {
-			cameraPosition.x -= moveSpeed
+			cameraPosition -= right * moveSpeed
 		}
 		if input.dPressed {
-			cameraPosition.x += moveSpeed
+			cameraPosition += right * moveSpeed
 		}
 		
 		// Get this frame's render target and set the background clear color
@@ -105,7 +111,20 @@ final class Renderer: NSObject, MTKViewDelegate {
 		)
 		
 		// Send the camera matrix to buffer(2) in the vertex shader
-		viewMatrix.columns.3 = SIMD4<Float>(-cameraPosition.x, -cameraPosition.y, -cameraPosition.z, 1)
+		cameraYaw += input.mouseDeltaX * 0.002
+		input.mouseDeltaX = 0
+		let cosYaw = cos(-cameraYaw)
+		let sinYaw = sin(-cameraYaw)
+		viewMatrix.columns.0 = SIMD4<Float>(cosYaw, 0, -sinYaw, 0)
+		viewMatrix.columns.2 = SIMD4<Float>(sinYaw, 0, cosYaw, 0)
+		let translatedX = -(cameraPosition.x * cosYaw + cameraPosition.z * sinYaw)
+		let translatedZ = -(-cameraPosition.x * sinYaw + cameraPosition.z * cosYaw)
+		viewMatrix.columns.3 = SIMD4<Float>(
+			translatedX,
+			-cameraPosition.y,
+			translatedZ,
+			1
+		)
 		var cameraMatrix = viewMatrix
 		renderEncoder.setVertexBytes(&cameraMatrix,
 									 length: MemoryLayout<simd_float4x4>.stride,

@@ -8,4 +8,7 @@ final class Input {
 	
 	var mouseDeltaX: Float = 0
 	var mouseDeltaY: Float = 0
+	
+	var spacePressed = false
+	var shiftPressed = false
 }

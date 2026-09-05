@@ -10,9 +10,18 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	// 3D positions of the triangle's three vertices
 	let vertices: [SIMD3<Float>] = [
-		SIMD3<Float>(0.0, 0.5, 2.0),
-		SIMD3<Float>(-0.5, -0.5, 2.0),
-		SIMD3<Float>(0.5, -0.5, 2.5)
+		SIMD3<Float>(0.0, 0.0, 3.1), SIMD3<Float>(0.1, 0.0, 3.1), SIMD3<Float>(0.1, 0.1, 3.1),
+		SIMD3<Float>(0.1, 0.1, 3.1), SIMD3<Float>(0.0, 0.1, 3.1), SIMD3<Float>(0.0, 0.0, 3.1),
+		SIMD3<Float>(0.1, 0.0, 3.0), SIMD3<Float>(0.0, 0.0, 3.0), SIMD3<Float>(0.0, 0.1, 3.0),
+		SIMD3<Float>(0.0, 0.1, 3.0), SIMD3<Float>(0.1, 0.1, 3.0), SIMD3<Float>(0.1, 0.0, 3.0),
+		SIMD3<Float>(0.0, 0.0, 3.0), SIMD3<Float>(0.0, 0.0, 3.1), SIMD3<Float>(0.0, 0.1, 3.1),
+		SIMD3<Float>(0.0, 0.1, 3.1), SIMD3<Float>(0.0, 0.1, 3.0), SIMD3<Float>(0.0, 0.0, 3.0),
+		SIMD3<Float>(0.1, 0.0, 3.1), SIMD3<Float>(0.1, 0.0, 3.0), SIMD3<Float>(0.1, 0.1, 3.0),
+		SIMD3<Float>(0.1, 0.1, 3.0), SIMD3<Float>(0.1, 0.1, 3.1), SIMD3<Float>(0.1, 0.0, 3.1),
+		SIMD3<Float>(0.0, 0.1, 3.1), SIMD3<Float>(0.1, 0.1, 3.1), SIMD3<Float>(0.1, 0.1, 3.0),
+		SIMD3<Float>(0.1, 0.1, 3.0), SIMD3<Float>(0.0, 0.1, 3.0), SIMD3<Float>(0.0, 0.1, 3.1),
+		SIMD3<Float>(0.0, 0.0, 3.0), SIMD3<Float>(0.1, 0.0, 3.0), SIMD3<Float>(0.1, 0.0, 3.1),
+		SIMD3<Float>(0.1, 0.0, 3.1), SIMD3<Float>(0.0, 0.0, 3.1), SIMD3<Float>(0.0, 0.0, 3.0)
 	]
 	
 	// GPU vertex storage and the compiled shader pipeline
@@ -27,6 +36,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var viewMatrix: simd_float4x4 = matrix_identity_float4x4
 	var cameraPosition = SIMD3<Float>(0, 0, 0)
 	var cameraYaw: Float = 0
+	var cameraPitch: Float = 0
 	
 	// Creates the renderer's Metal resources when the object is initialized
 	init(input: Input) {
@@ -111,17 +121,49 @@ final class Renderer: NSObject, MTKViewDelegate {
 		)
 		
 		// Send the camera matrix to buffer(2) in the vertex shader
+		// Turn horizontal mouse movement into left/right camera rotation
 		cameraYaw += input.mouseDeltaX * 0.002
 		input.mouseDeltaX = 0
+		
+		// Turn vertical mouse movement into up/down camera rotation
+		cameraPitch += input.mouseDeltaY * 0.002
+		cameraPitch = max(-.pi / 2 + 0.01, min(.pi / 2 - 0.01, cameraPitch))
+		input.mouseDeltaY = 0
+
+		// Calculate the rotation values for the view matrix
+		// The negative yaw is used because the view matrix moves the world
+		// opposite to the direction the camera is facing
 		let cosYaw = cos(-cameraYaw)
 		let sinYaw = sin(-cameraYaw)
-		viewMatrix.columns.0 = SIMD4<Float>(cosYaw, 0, -sinYaw, 0)
-		viewMatrix.columns.2 = SIMD4<Float>(sinYaw, 0, cosYaw, 0)
+		let cosPitch = cos(-cameraPitch)
+		let sinPitch = sin(-cameraPitch)
+
+		// These two columns rotate the world around the X and Y axis
+		viewMatrix.columns.0 = SIMD4<Float>(cosYaw, sinPitch * sinYaw, -cosPitch * sinYaw, 0)
+		viewMatrix.columns.1 = SIMD4<Float>(0, cosPitch, sinPitch, 0)
+		viewMatrix.columns.2 = SIMD4<Float>(sinYaw, -sinPitch * cosYaw, cosPitch * cosYaw, 0)
+
+		// Convert the camera's X, Y, and Z position into the rotated coordinate system
+		// Then negate them so moving the camera right makes the world move left, etc.
 		let translatedX = -(cameraPosition.x * cosYaw + cameraPosition.z * sinYaw)
-		let translatedZ = -(-cameraPosition.x * sinYaw + cameraPosition.z * cosYaw)
+
+		let translatedY = -(
+			cameraPosition.x * sinPitch * sinYaw
+			+ cameraPosition.y * cosPitch
+			- cameraPosition.z * sinPitch * cosYaw
+		)
+
+		let translatedZ = -(
+			-cameraPosition.x * cosPitch * sinYaw
+			+ cameraPosition.y * sinPitch
+			+ cameraPosition.z * cosPitch * cosYaw
+		)
+
+		// Column 3 stores the translation part of the view matrix
+		// This moves the entire world opposite to the camera's position
 		viewMatrix.columns.3 = SIMD4<Float>(
 			translatedX,
-			-cameraPosition.y,
+			translatedY,
 			translatedZ,
 			1
 		)
@@ -135,7 +177,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		renderEncoder.drawPrimitives(
 			type: .triangle,
 			vertexStart: 0,
-			vertexCount: 3
+			vertexCount: 24
 		)
 		
 		// Finish encoding, display the frame, and submit the work to the GPU
@@ -154,7 +196,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		projectionMatrix = makePerspectiveMatrix(
 			fovY: 60 * .pi / 180,
 			aspect: aspect,
-			nearZ: 0.1,
+			nearZ: 0.001,
 			farZ: 1000
 		)
 	}

@@ -8,36 +8,172 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let device: MTLDevice
 	let commandQueue: MTLCommandQueue
 	
-	// 36 vertices make a 1 x 1 x 1 cube.
-	// The cube goes from:
-	// X: 0 -> 1
-	// Y: 0 -> 1
-	// Z: 1 -> 2
-	let vertices: [SIMD3<Float>] = [
-		
-		// Front face: Z = 1 — points toward -Z
-		SIMD3<Float>(0, 0, 1), SIMD3<Float>(1, 1, 1), SIMD3<Float>(1, 0, 1),
-		SIMD3<Float>(1, 1, 1), SIMD3<Float>(0, 0, 1), SIMD3<Float>(0, 1, 1),
+	struct Vertex {
+		let position: SIMD3<Float>
+		let uv: SIMD2<Float>
+	}
+	
+	let vertices: [Vertex] = [
 
-		// Back face: Z = 2 — points toward +Z
-		SIMD3<Float>(1, 0, 2), SIMD3<Float>(0, 1, 2), SIMD3<Float>(0, 0, 2),
-		SIMD3<Float>(0, 1, 2), SIMD3<Float>(1, 0, 2), SIMD3<Float>(1, 1, 2),
+		// =========================
+		// BLOCK 1 — x = 0...1
+		// =========================
 
-		// Left face: X = 0 — points toward -X
-		SIMD3<Float>(0, 0, 2), SIMD3<Float>(0, 1, 1), SIMD3<Float>(0, 0, 1),
-		SIMD3<Float>(0, 1, 1), SIMD3<Float>(0, 0, 2), SIMD3<Float>(0, 1, 2),
+		// Front
+		Vertex(position: SIMD3<Float>(0, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(0, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(0, 1, 1), uv: SIMD2<Float>(0, 0)),
 
-		// Right face: X = 1 — points toward +X
-		SIMD3<Float>(1, 0, 1), SIMD3<Float>(1, 1, 2), SIMD3<Float>(1, 0, 2),
-		SIMD3<Float>(1, 1, 2), SIMD3<Float>(1, 0, 1), SIMD3<Float>(1, 1, 1),
+		// Back
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(0, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(0, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(0, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(0, 0)),
 
-		// Top face: Y = 1 — points toward +Y
-		SIMD3<Float>(0, 1, 1), SIMD3<Float>(1, 1, 2), SIMD3<Float>(1, 1, 1),
-		SIMD3<Float>(1, 1, 2), SIMD3<Float>(0, 1, 1), SIMD3<Float>(0, 1, 2),
+		// Left
+		Vertex(position: SIMD3<Float>(0, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(0, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(0, 0, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(0, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(0, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(0, 1, 2), uv: SIMD2<Float>(0, 0)),
 
-		// Bottom face: Y = 0 — points toward -Y
-		SIMD3<Float>(0, 0, 2), SIMD3<Float>(1, 0, 1), SIMD3<Float>(1, 0, 2),
-		SIMD3<Float>(1, 0, 1), SIMD3<Float>(0, 0, 2), SIMD3<Float>(0, 0, 1)
+		// Right
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(0, 0)),
+
+		// Top
+		Vertex(position: SIMD3<Float>(0, 1, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(0, 1, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(0, 1, 2), uv: SIMD2<Float>(0, 0)),
+
+		// Bottom
+		Vertex(position: SIMD3<Float>(0, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(0, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(0, 0, 1), uv: SIMD2<Float>(0, 0)),
+
+
+
+		// =========================
+		// BLOCK 2 — x = 1...2
+		// =========================
+
+		// Front
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(0, 0)),
+
+		// Back
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(0, 0)),
+
+		// Left
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(0, 0)),
+
+		// Right
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(0, 0)),
+
+		// Top
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 1, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 1, 2), uv: SIMD2<Float>(0, 0)),
+
+		// Bottom
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(1, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(1, 0, 1), uv: SIMD2<Float>(0, 0)),
+
+
+
+		// =========================
+		// BLOCK 3 — x = 2...3
+		// =========================
+
+		// Front
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(3, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(3, 0, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(3, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(0, 0)),
+
+		// Back
+		Vertex(position: SIMD3<Float>(3, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(3, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(3, 1, 2), uv: SIMD2<Float>(0, 0)),
+
+		// Left
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(0, 0)),
+
+		// Right
+		Vertex(position: SIMD3<Float>(3, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(3, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(3, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(3, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(3, 0, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(3, 1, 1), uv: SIMD2<Float>(0, 0)),
+
+		// Top
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(3, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(3, 1, 1), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(3, 1, 2), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 1, 1), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 1, 2), uv: SIMD2<Float>(0, 0)),
+
+		// Bottom
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(3, 0, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(3, 0, 2), uv: SIMD2<Float>(1, 1)),
+		Vertex(position: SIMD3<Float>(3, 0, 1), uv: SIMD2<Float>(1, 0)),
+		Vertex(position: SIMD3<Float>(2, 0, 2), uv: SIMD2<Float>(0, 1)),
+		Vertex(position: SIMD3<Float>(2, 0, 1), uv: SIMD2<Float>(0, 0))
 	]
 	
 	// vertexBuffer stores the cube vertices in GPU-readable memory.
@@ -48,6 +184,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	// Stores the keyboard and mouse input state
 	let input: Input
+	
+	let texture: MTLTexture
 	
 	// projectionMatrix gives the scene perspective/FOV.
 	// viewMatrix represents the camera's position and rotation.
@@ -65,6 +203,18 @@ final class Renderer: NSObject, MTKViewDelegate {
 		// Get the Mac's Metal GPU
 		self.device = MTLCreateSystemDefaultDevice()!
 		
+		let textureLoader = MTKTextureLoader(device: device)
+
+		let textureURL = Bundle.main.url(
+			forResource: "stone",
+			withExtension: "png"
+		)!
+
+		texture = try! textureLoader.newTexture(
+			URL: textureURL,
+			options: nil
+		)
+		
 		// Load the Metal shaders compiled from Shaders.metal
 		let library = device.makeDefaultLibrary()!
 		let vertexFunction = library.makeFunction(name: "vertexShader")!
@@ -76,7 +226,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		pipelineDescriptor.fragmentFunction = fragmentFunction
 		
 		// The window's color texture uses BGRA pixels
-		pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+		pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm_srgb
 		pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float
 		
 		// Compile the pipeline description into something the GPU can use
@@ -90,7 +240,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		// Copy all 36 cube vertices into GPU-accessible memory
 		self.vertexBuffer = device.makeBuffer(
 			bytes: vertices,
-			length: vertices.count * MemoryLayout<SIMD3<Float>>.stride
+			length: vertices.count * MemoryLayout<Vertex>.stride
 		)!
 		
 		// Make depth rules so Metal knows what goes in front of what
@@ -290,11 +440,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 			index: 2
 		)
 		
+		renderEncoder.setFragmentTexture(texture, index: 0)
+		
 		// Draw 12 triangles = 6 cube faces
 		renderEncoder.drawPrimitives(
 			type: .triangle,
 			vertexStart: 0,
-			vertexCount: 36
+			vertexCount: vertices.count
 		)
 		
 		renderEncoder.endEncoding()

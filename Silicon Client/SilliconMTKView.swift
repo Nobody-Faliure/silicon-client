@@ -9,7 +9,7 @@ final class SiliconMTKView: MTKView {
 		self.input = input
 		super.init(frame: .zero, device: nil)
 		
-		colorPixelFormat = .bgra8Unorm
+		colorPixelFormat = .bgra8Unorm_srgb
 		depthStencilPixelFormat = .depth32Float
 	}
 	

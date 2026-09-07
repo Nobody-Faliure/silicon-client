@@ -13,7 +13,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let device: MTLDevice
 	let commandQueue: MTLCommandQueue
 	
-	let vertices: [Vertex]
+	var vertices: [Vertex] = []
 	
 	// vertexBuffer stores the cube vertices in GPU-readable memory.
 	// pipelineState contains the compiled vertex + fragment shader setup.
@@ -31,12 +31,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var projectionMatrix: simd_float4x4 = matrix_identity_float4x4
 	var viewMatrix: simd_float4x4 = matrix_identity_float4x4
 	
-	var chunk : Chunk
-	
 	// Camera location and rotation
 	var cameraPosition = SIMD3<Float>(0, 0, 0)
 	var cameraYaw: Float = 0
 	var cameraPitch: Float = 0
+	
+	var clientWorld: ClientWorld = ClientWorld()
 	
 	// Creates all the Metal resources when Renderer starts
 	init(input: Input) {
@@ -74,18 +74,25 @@ final class Renderer: NSObject, MTKViewDelegate {
 		// The command queue is where we submit work to the GPU
 		self.commandQueue = device.makeCommandQueue()!
 		
-		var startingChunk = Chunk(chunkX: 0, chunkZ: 0)
-		startingChunk.setBlock(x: 1, y: 0, z: 1, block: .stone)
-		startingChunk.setBlock(x: 1, y: 1, z: 1, block: .stone)
+		let server = IntegratedServer()
 
-		self.chunk = startingChunk
-		self.vertices = ChunkMesher.buildMesh(from: startingChunk)
+		server.sendWorld(to: clientWorld)
+		
+		for chunk in self.clientWorld.chunks {
+			vertices.append(contentsOf: ChunkMesher.buildMesh(from: chunk))
+		}
 		
 		// Copy all 36 cube vertices into GPU-accessible memory
-		self.vertexBuffer = device.makeBuffer(
-			bytes: vertices,
-			length: vertices.count * MemoryLayout<Vertex>.stride
-		)!
+		if vertices.isEmpty {
+			self.vertexBuffer = device.makeBuffer(
+				length: MemoryLayout<Vertex>.stride
+			)!
+		} else {
+			self.vertexBuffer = device.makeBuffer(
+				bytes: vertices,
+				length: vertices.count * MemoryLayout<Vertex>.stride
+			)!
+		}
 		
 		// Make depth rules so Metal knows what goes in front of what
 		let depthDescriptor = MTLDepthStencilDescriptor()

@@ -6,15 +6,20 @@ enum Block {
 struct Chunk {
 	var blocks: [Block]
 	
+	var chunkX: Int
+	var chunkZ: Int
+	
 	static let width = 16
 	static let depth = 16
 	static let height = 16
 	
-	init() {
+	init(chunkX: Int, chunkZ: Int) {
 		self.blocks = Array(
 			repeating: .air,
 			count: Chunk.width * Chunk.height * Chunk.depth
 		)
+		self.chunkX = chunkX
+		self.chunkZ = chunkZ
 	}
 	
 	// Converts 3D chunk coordinates into one position in the flat block array.

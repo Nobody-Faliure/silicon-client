@@ -31,7 +31,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var projectionMatrix: simd_float4x4 = matrix_identity_float4x4
 	var viewMatrix: simd_float4x4 = matrix_identity_float4x4
 	
-	var chunk = Chunk()
+	var chunk : Chunk
 	
 	// Camera location and rotation
 	var cameraPosition = SIMD3<Float>(0, 0, 0)
@@ -74,8 +74,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 		// The command queue is where we submit work to the GPU
 		self.commandQueue = device.makeCommandQueue()!
 		
-		var startingChunk = Chunk()
+		var startingChunk = Chunk(chunkX: 0, chunkZ: 0)
 		startingChunk.setBlock(x: 1, y: 0, z: 1, block: .stone)
+		startingChunk.setBlock(x: 1, y: 1, z: 1, block: .stone)
 
 		self.chunk = startingChunk
 		self.vertices = ChunkMesher.buildMesh(from: startingChunk)

@@ -13,88 +13,69 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let device: MTLDevice
 	let commandQueue: MTLCommandQueue
 	
-	var vertices: [Vertex] = []
-	
-	// vertexBuffer stores the cube vertices in GPU-readable memory.
-	// pipelineState contains the compiled vertex + fragment shader setup.
-	let vertexBuffer: MTLBuffer
+	// GPU rendering resources
 	let depthStencilState: MTLDepthStencilState
 	let pipelineState: MTLRenderPipelineState
 	
-	// Stores the keyboard and mouse input state
+	// Keyboard and mouse input
 	let input: Input
 	
+	// Current block texture
 	let texture: MTLTexture
 	
-	// projectionMatrix gives the scene perspective/FOV.
-	// viewMatrix represents the camera's position and rotation.
+	// Camera matrices
 	var projectionMatrix: simd_float4x4 = matrix_identity_float4x4
 	var viewMatrix: simd_float4x4 = matrix_identity_float4x4
 	
-	// Camera location and rotation
+	// Camera state
 	var cameraPosition = SIMD3<Float>(0, 0, 0)
 	var cameraYaw: Float = 0
 	var cameraPitch: Float = 0
 	
+	// Client-side copy of the world
 	var clientWorld: ClientWorld = ClientWorld()
 	
-	// Creates all the Metal resources when Renderer starts
+	var chunkMeshes: [ChunkRenderMesh] = []
+	
+	// Creates all Metal resources when Renderer starts
 	init(input: Input) {
 		
 		// Get the Mac's Metal GPU
 		self.device = MTLCreateSystemDefaultDevice()!
 		
+		// Load stone texture
 		let textureLoader = MTKTextureLoader(device: device)
 
-		texture = try! textureLoader.newTexture(
+		self.texture = try! textureLoader.newTexture(
 			name: "stone",
 			scaleFactor: 1.0,
 			bundle: .main
 		)
 		
-		// Load the Metal shaders compiled from Shaders.metal
+		// Load Metal shaders
 		let library = device.makeDefaultLibrary()!
 		let vertexFunction = library.makeFunction(name: "vertexShader")!
 		let fragmentFunction = library.makeFunction(name: "fragmentShader")!
 		
-		// Describe how our rendering pipeline should work
+		// Set up render pipeline
 		let pipelineDescriptor = MTLRenderPipelineDescriptor()
 		pipelineDescriptor.vertexFunction = vertexFunction
 		pipelineDescriptor.fragmentFunction = fragmentFunction
 		
-		// The window's color texture uses BGRA pixels
-		pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm_srgb
-		pipelineDescriptor.depthAttachmentPixelFormat = .depth32Float
+		pipelineDescriptor.colorAttachments[0].pixelFormat =
+			.bgra8Unorm_srgb
 		
-		// Compile the pipeline description into something the GPU can use
+		pipelineDescriptor.depthAttachmentPixelFormat =
+			.depth32Float
+		
 		self.pipelineState = try! device.makeRenderPipelineState(
 			descriptor: pipelineDescriptor
 		)
 		
-		// The command queue is where we submit work to the GPU
+		// Create command queue
 		self.commandQueue = device.makeCommandQueue()!
 		
-		let server = IntegratedServer()
-
-		server.sendWorld(to: clientWorld)
-		
-		for chunk in self.clientWorld.chunks {
-			vertices.append(contentsOf: ChunkMesher.buildMesh(from: chunk))
-		}
-		
-		// Copy all 36 cube vertices into GPU-accessible memory
-		if vertices.isEmpty {
-			self.vertexBuffer = device.makeBuffer(
-				length: MemoryLayout<Vertex>.stride
-			)!
-		} else {
-			self.vertexBuffer = device.makeBuffer(
-				bytes: vertices,
-				length: vertices.count * MemoryLayout<Vertex>.stride
-			)!
-		}
-		
-		// Make depth rules so Metal knows what goes in front of what
+		// Set up depth testing
 		let depthDescriptor = MTLDepthStencilDescriptor()
 		depthDescriptor.depthCompareFunction = .less
 		depthDescriptor.isDepthWriteEnabled = true
@@ -103,41 +84,45 @@ final class Renderer: NSObject, MTKViewDelegate {
 			descriptor: depthDescriptor
 		)!
 		
-		// Keep the Input object so Renderer can check keys/mouse
+		// Store input
 		self.input = input
 		
-		// Initialize NSObject after our properties are ready
 		super.init()
+		
+		// Start the integrated server and receive its world
+		let server = IntegratedServer()
+		server.sendWorld(to: clientWorld)
+		
+		// Build the first world mesh
+		chunkMeshes = buildWorldMeshes(
+			from: clientWorld,
+			device: device
+		)
 	}
 	
 	// Called repeatedly by MTKView to draw each frame
 	func draw(in view: MTKView) {
 		
-		// Forward points in the direction the camera is facing horizontally.
-		// Y stays 0 so W/S do not fly upward when looking up.
+		// Forward direction based on camera yaw
 		let forward = SIMD3<Float>(
 			sin(cameraYaw),
 			0,
 			cos(cameraYaw)
 		)
 		
-		// Right is 90 degrees sideways from forward.
-		// This lets A/D follow the camera's yaw.
+		// Right direction based on camera yaw
 		let right = SIMD3<Float>(
 			cos(cameraYaw),
 			0,
 			-sin(cameraYaw)
 		)
 		
-		// World-up always points directly along +Y.
-		// This is used for Space/Shift flying.
 		let up = SIMD3<Float>(
 			0,
 			1,
 			0
 		)
 		
-		// Camera movement amount per frame
 		let moveSpeed: Float = 0.01
 		
 		if input.wPressed {
@@ -164,16 +149,16 @@ final class Renderer: NSObject, MTKViewDelegate {
 			cameraPosition -= up * moveSpeed
 		}
 		
-		// Get the textures used for this frame
-		guard let renderPassDescriptor = view.currentRenderPassDescriptor else {
+		guard let renderPassDescriptor =
+				view.currentRenderPassDescriptor else {
 			return
 		}
 		
-		// Start every depth pixel at the farthest possible depth
+		// Clear depth buffer
 		renderPassDescriptor.depthAttachment.clearDepth = 1.0
 		renderPassDescriptor.depthAttachment.loadAction = .clear
 		
-		// Clear the previous frame with sky blue
+		// Sky color
 		renderPassDescriptor.colorAttachments[0].clearColor =
 			MTLClearColor(
 				red: 0.45,
@@ -182,29 +167,20 @@ final class Renderer: NSObject, MTKViewDelegate {
 				alpha: 1.0
 			)
 		
-		// Create a package of GPU commands
+		// Begin GPU commands
 		let commandBuffer = commandQueue.makeCommandBuffer()!
 		
-		// Record rendering instructions
 		let renderEncoder = commandBuffer.makeRenderCommandEncoder(
 			descriptor: renderPassDescriptor
 		)!
 		
-		// Tell Metal which rendering rules to use
 		renderEncoder.setRenderPipelineState(pipelineState)
 		renderEncoder.setDepthStencilState(depthStencilState)
 		
-		// Don't draw triangle backs
+		// Cull triangle backs
 		renderEncoder.setCullMode(.back)
 		
-		// Give buffer(0) our cube vertices
-		renderEncoder.setVertexBuffer(
-			vertexBuffer,
-			offset: 0,
-			index: 0
-		)
-		
-		// Projection matrix sent to vertex shader buffer(1)
+		// Send projection matrix
 		var matrix = projectionMatrix
 		
 		renderEncoder.setVertexBytes(
@@ -213,14 +189,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 			index: 1
 		)
 		
-		// Mouse X changes yaw
+		// Mouse yaw
 		cameraYaw += input.mouseDeltaX * 0.002
 		input.mouseDeltaX = 0
 		
-		// Mouse Y changes pitch
+		// Mouse pitch
 		cameraPitch += input.mouseDeltaY * 0.002
 		
-		// Prevent camera from flipping upside down
 		cameraPitch = max(
 			-.pi / 2 + 0.01,
 			min(.pi / 2 - 0.01, cameraPitch)
@@ -228,13 +203,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		input.mouseDeltaY = 0
 
-		// Calculate camera rotation
+		// Camera rotation
 		let cosYaw = cos(-cameraYaw)
 		let sinYaw = sin(-cameraYaw)
 		let cosPitch = cos(-cameraPitch)
 		let sinPitch = sin(-cameraPitch)
 
-		// Rotation part of the view matrix
 		viewMatrix.columns.0 = SIMD4<Float>(
 			cosYaw,
 			sinPitch * sinYaw,
@@ -256,7 +230,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			0
 		)
 
-		// Camera translation after accounting for rotation
+		// Camera translation
 		let translatedX = -(
 			cameraPosition.x * cosYaw
 			+ cameraPosition.z * sinYaw
@@ -274,7 +248,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 			+ cameraPosition.z * cosPitch * cosYaw
 		)
 
-		// Translation part of the view matrix
 		viewMatrix.columns.3 = SIMD4<Float>(
 			translatedX,
 			translatedY,
@@ -282,7 +255,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			1
 		)
 		
-		// Send camera/view matrix into vertex shader buffer(2)
+		// Send camera matrix
 		var cameraMatrix = viewMatrix
 		
 		renderEncoder.setVertexBytes(
@@ -291,14 +264,26 @@ final class Renderer: NSObject, MTKViewDelegate {
 			index: 2
 		)
 		
-		renderEncoder.setFragmentTexture(texture, index: 0)
-		
-		// Draw 12 triangles = 6 cube faces
-		renderEncoder.drawPrimitives(
-			type: .triangle,
-			vertexStart: 0,
-			vertexCount: vertices.count
+		// Send texture to fragment shader
+		renderEncoder.setFragmentTexture(
+			texture,
+			index: 0
 		)
+		
+		// Draw current mesh
+		for mesh in chunkMeshes {
+			renderEncoder.setVertexBuffer(
+				mesh.vertexBuffer,
+				offset: 0,
+				index: 0
+			)
+			
+			renderEncoder.drawPrimitives(
+				type: .triangle,
+				vertexStart: 0,
+				vertexCount: mesh.vertexCount
+			)
+		}
 		
 		renderEncoder.endEncoding()
 		

@@ -20,9 +20,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 	// Keyboard and mouse input
 	let input: Input
 	
-	// Current block texture
-	let texture: MTLTexture
-	
 	// Camera matrices
 	var projectionMatrix: simd_float4x4 = matrix_identity_float4x4
 	var viewMatrix: simd_float4x4 = matrix_identity_float4x4
@@ -42,15 +39,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		// Get the Mac's Metal GPU
 		self.device = MTLCreateSystemDefaultDevice()!
-		
-		// Load stone texture
-		let textureLoader = MTKTextureLoader(device: device)
-
-		self.texture = try! textureLoader.newTexture(
-			name: "stone",
-			scaleFactor: 1.0,
-			bundle: .main
-		)
 		
 		// Load Metal shaders
 		let library = device.makeDefaultLibrary()!
@@ -264,25 +252,29 @@ final class Renderer: NSObject, MTKViewDelegate {
 			index: 2
 		)
 		
-		// Send texture to fragment shader
-		renderEncoder.setFragmentTexture(
-			texture,
-			index: 0
-		)
-		
 		// Draw current mesh
 		for mesh in chunkMeshes {
-			renderEncoder.setVertexBuffer(
-				mesh.vertexBuffer,
-				offset: 0,
-				index: 0
-			)
-			
-			renderEncoder.drawPrimitives(
-				type: .triangle,
-				vertexStart: 0,
-				vertexCount: mesh.vertexCount
-			)
+			for material in mesh.materials {
+				let materialTexture = texture(named: material.textureName)
+				
+				// Send texture to fragment shader
+				renderEncoder.setFragmentTexture(
+					materialTexture,
+					index: 0
+				)
+				
+				renderEncoder.setVertexBuffer(
+					material.vertexBuffer,
+					offset: 0,
+					index: 0
+				)
+
+				renderEncoder.drawPrimitives(
+					type: .triangle,
+					vertexStart: 0,
+					vertexCount: material.vertexCount
+				)
+			}
 		}
 		
 		renderEncoder.endEncoding()
@@ -331,6 +323,16 @@ final class Renderer: NSObject, MTKViewDelegate {
 			SIMD4<Float>(0, yScale, 0, 0),
 			SIMD4<Float>(0, 0, zScale, 1),
 			SIMD4<Float>(0, 0, wzScale, 0)
+		)
+	}
+	
+	func texture(named name: String) -> MTLTexture {
+		let textureLoader = MTKTextureLoader(device: device)
+
+		return try! textureLoader.newTexture(
+			name: name,
+			scaleFactor: 1.0,
+			bundle: .main
 		)
 	}
 }

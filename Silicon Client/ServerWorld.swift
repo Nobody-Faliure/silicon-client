@@ -10,6 +10,12 @@ final class ServerWorld {
 			z: 1,
 			block: .stone
 		)
+		chunk.setBlock(
+			x: 1,
+			y: 0,
+			z: 2,
+			block: .stone
+		)
 
 		chunks.append(chunk)
 	}

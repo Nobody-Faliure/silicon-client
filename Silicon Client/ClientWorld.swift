@@ -1,5 +1,7 @@
 final class ClientWorld {
 	var chunks: [Chunk] = []
+	
+	let blockRegistry = BlockRegistry.vanilla()
 
 	init() {
 	}

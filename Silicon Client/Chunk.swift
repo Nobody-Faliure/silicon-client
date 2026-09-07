@@ -1,6 +1,8 @@
-enum Block {
-	case air
-	case stone
+struct Block: Equatable {
+	let id: String
+
+	static let air = Block(id: "minecraft:air")
+	static let stone = Block(id: "minecraft:stone")
 }
 
 struct Chunk {

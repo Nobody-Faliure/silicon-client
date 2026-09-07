@@ -1,33 +1,51 @@
 import Metal
 
-struct ChunkRenderMesh {
-	let chunkX: Int
-	let chunkZ: Int
-
+struct ChunkMaterialMesh {
+	let textureName: String
 	let vertexBuffer: MTLBuffer
 	let vertexCount: Int
 }
 
+struct ChunkRenderMesh {
+	let chunkX: Int
+	let chunkZ: Int
+	let materials: [ChunkMaterialMesh]
+}
+
 func buildChunkRenderMesh(
 	from chunk: Chunk,
-	device: MTLDevice
+	device: MTLDevice,
+	registry: BlockRegistry
 ) -> ChunkRenderMesh? {
-	let vertices = ChunkMesher.buildMesh(from: chunk)
+	let verticesByTexture = ChunkMesher.buildMesh(
+		from: chunk,
+		registry: registry
+	)
+	
+	var materials: [ChunkMaterialMesh] = []
 
-	if vertices.isEmpty {
+	if verticesByTexture.isEmpty {
 		return nil
 	}
-
-	let vertexBuffer = device.makeBuffer(
-		bytes: vertices,
-		length: vertices.count * MemoryLayout<Vertex>.stride
-	)!
+	for (textureName, textureVertices) in verticesByTexture {
+		let vertexBuffer = device.makeBuffer(
+			bytes: textureVertices,
+			length: textureVertices.count * MemoryLayout<Vertex>.stride
+		)!
+		materials.append(
+			ChunkMaterialMesh(
+				textureName: textureName,
+				vertexBuffer: vertexBuffer,
+				vertexCount: textureVertices.count
+			)
+		)
+	}
+	
 
 	return ChunkRenderMesh(
 		chunkX: chunk.chunkX,
 		chunkZ: chunk.chunkZ,
-		vertexBuffer: vertexBuffer,
-		vertexCount: vertices.count
+		materials: materials
 	)
 }
 
@@ -40,7 +58,8 @@ func buildWorldMeshes(
 	for chunk in clientWorld.chunks {
 		if let mesh = buildChunkRenderMesh(
 			from: chunk,
-			device: device
+			device: device,
+			registry: clientWorld.blockRegistry
 		) {
 			chunkMeshes.append(mesh)
 		}

@@ -33,6 +33,12 @@ fragment float4 fragmentShader(
 		min_filter::nearest
 	);
 
-	return texture.sample(textureSampler, in.uv);
+	float4 color = texture.sample(textureSampler, in.uv);
+
+	if (color.g == 0.0 && color.b == 0.0) {
+		return float4(color.r, color.r, color.r, color.a);
+	}
+
+	return color;
 }
 

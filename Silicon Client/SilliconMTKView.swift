@@ -4,7 +4,6 @@ import CoreGraphics
 final class SiliconMTKView: MTKView {
 	let input: Input
 	
-	
 	init(input: Input) {
 		self.input = input
 		super.init(frame: .zero, device: nil)

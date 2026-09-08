@@ -75,6 +75,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 		// Store input
 		self.input = input
 		
+		let textureDownloader = TextureDownloader()
+		
+		Task {
+			do {
+				let folder = try await textureDownloader.downloadAllBlockAndItemTextures()
+				print("Finished downloading textures to:", folder.path)
+			} catch {
+				print("Texture download failed:", error)
+			}
+		}
+		
 		super.init()
 		
 		// Start the integrated server and receive its world
@@ -329,10 +340,20 @@ final class Renderer: NSObject, MTKViewDelegate {
 	func texture(named name: String) -> MTLTexture {
 		let textureLoader = MTKTextureLoader(device: device)
 
+		let texturesFolder = FileManager.default.urls(
+			for: .applicationSupportDirectory,
+			in: .userDomainMask
+		)[0]
+		.appendingPathComponent("Silicon Client")
+		.appendingPathComponent("assets/minecraft/textures/block")
+
+		let textureURL = texturesFolder
+			.appendingPathComponent(name)
+			.appendingPathExtension("png")
+
 		return try! textureLoader.newTexture(
-			name: name,
-			scaleFactor: 1.0,
-			bundle: .main
+			URL: textureURL,
+			options: [.SRGB: true]
 		)
 	}
 }

@@ -42,4 +42,10 @@ final class ClientWorld {
 			}
 		}
 	}
+	
+	func unloadChunk(chunkX: Int, chunkZ: Int) {
+		chunks.removeAll {
+			$0.chunkX == chunkX && $0.chunkZ == chunkZ
+		}
+	}
 }

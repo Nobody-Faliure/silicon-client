@@ -33,4 +33,15 @@ final class IntegratedServer {
 			block: block
 		)
 	}
+	
+	func unloadChunk(
+		chunkX: Int,
+		chunkZ: Int,
+		from clientWorld: ClientWorld
+	) {
+		clientWorld.unloadChunk(
+			chunkX: chunkX,
+			chunkZ: chunkZ
+		)
+	}
 }

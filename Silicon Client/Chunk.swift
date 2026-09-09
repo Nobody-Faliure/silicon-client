@@ -3,10 +3,27 @@ struct Block: Equatable {
 
 	static let air = Block(id: "minecraft:air")
 	static let stone = Block(id: "minecraft:stone")
+	static let oak_log = Block(id: "minecraft:oak_log")
+	static let deepslate = Block(id: "minecraft:deepslate")
+	static let crafting_table = Block(id: "minecraft:crafting_table")
+}
+
+enum BlockFace: String {
+	case up
+	case down
+	case north
+	case south
+	case east
+	case west
+}
+
+struct BlockState {
+	let block: Block
+	let properties: [String: String]
 }
 
 struct Chunk {
-	var blocks: [Block]
+	var blocks: [BlockState]
 	
 	var chunkX: Int
 	var chunkZ: Int
@@ -17,7 +34,7 @@ struct Chunk {
 	
 	init(chunkX: Int, chunkZ: Int) {
 		self.blocks = Array(
-			repeating: .air,
+			repeating: BlockState(block: .air, properties: [:]),
 			count: Chunk.width * Chunk.height * Chunk.depth
 		)
 		self.chunkX = chunkX
@@ -30,10 +47,14 @@ struct Chunk {
 	}
 	
 	func getBlock(x: Int, y: Int, z: Int) -> Block {
+		return blocks[index(x: x, y: y, z: z)].block
+	}
+	
+	func getBlockState(x: Int, y: Int, z: Int) -> BlockState {
 		return blocks[index(x: x, y: y, z: z)]
 	}
 	
-	mutating func setBlock(x: Int, y: Int, z: Int, block: Block) {
+	mutating func setBlock(x: Int, y: Int, z: Int, block: BlockState) {
 		blocks[index(x: x, y: y, z: z)] = block
 	}
 }

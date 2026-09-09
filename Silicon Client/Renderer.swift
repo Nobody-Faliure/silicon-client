@@ -1,5 +1,6 @@
 import Metal
 import MetalKit
+import ImageIO
 
 struct Vertex {
 	let position: SIMD3<Float>
@@ -75,16 +76,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		// Store input
 		self.input = input
 		
-		let textureDownloader = TextureDownloader()
-		
-		Task {
-			do {
-				let folder = try await textureDownloader.downloadAllBlockAndItemTextures()
-				print("Finished downloading textures to:", folder.path)
-			} catch {
-				print("Texture download failed:", error)
-			}
-		}
+		let resourceDownloader = ResourceDownloader()
 		
 		super.init()
 		
@@ -92,11 +84,23 @@ final class Renderer: NSObject, MTKViewDelegate {
 		let server = IntegratedServer()
 		server.sendWorld(to: clientWorld)
 		
-		// Build the first world mesh
-		chunkMeshes = buildWorldMeshes(
-			from: clientWorld,
-			device: device
-		)
+		Task {
+			do {
+				let assetfolder = try await resourceDownloader.downloadAllBlockAndItemTextures()
+				print("Finished downloading textures to:", assetfolder.path)
+				
+				let modelFolder = try await resourceDownloader.downloadAllModelJSONs()
+				print("Finished downloading models to:", modelFolder.path)
+				
+				chunkMeshes = buildWorldMeshes(
+							from: clientWorld,
+							device: device,
+							modelFolder: modelFolder
+						)
+			} catch {
+				print("Resource download failed:", error)
+			}
+		}
 	}
 	
 	// Called repeatedly by MTKView to draw each frame
@@ -337,9 +341,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 		)
 	}
 	
+	// Finds a downloaded Minecraft texture by its resource name
 	func texture(named name: String) -> MTLTexture {
-		let textureLoader = MTKTextureLoader(device: device)
-
 		let texturesFolder = FileManager.default.urls(
 			for: .applicationSupportDirectory,
 			in: .userDomainMask
@@ -347,13 +350,106 @@ final class Renderer: NSObject, MTKViewDelegate {
 		.appendingPathComponent("Silicon Client")
 		.appendingPathComponent("assets/minecraft/textures/block")
 
+		// Convert "minecraft:block/stone" into "stone.png"
+		let textureName = name
+			.replacingOccurrences(of: "minecraft:block/", with: "")
+
 		let textureURL = texturesFolder
-			.appendingPathComponent(name)
+			.appendingPathComponent(textureName)
 			.appendingPathExtension("png")
 
-		return try! textureLoader.newTexture(
-			URL: textureURL,
-			options: [.SRGB: true]
-		)
+		return loadMinecraftTexture(from: textureURL)
+	}
+
+	// Decodes a Minecraft PNG into raw pixels and creates a Metal texture
+	func loadMinecraftTexture(from textureURL: URL) -> MTLTexture {
+		print("LOADING TEXTURE:", textureURL.path)
+
+		do {
+			let data = try Data(contentsOf: textureURL)
+
+			// Create an ImageIO source from the PNG data
+			guard let source = CGImageSourceCreateWithData(
+				data as CFData,
+				nil
+			) else {
+				fatalError("Could not create image source: \(textureURL.path)")
+			}
+
+			let cgImage = CGImageSourceCreateImageAtIndex(
+				source,
+				0,
+				nil
+			)!
+
+			let width = cgImage.width
+			let height = cgImage.height
+
+			// Allocate enough memory for RGBA pixels
+			let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+			let bytesPerRow = width * 4
+			let byteCount = bytesPerRow * height
+
+			let pixelData = UnsafeMutableRawPointer.allocate(
+				byteCount: byteCount,
+				alignment: 64
+			)
+
+			defer {
+				pixelData.deallocate()
+			}
+
+			// Decode the image into a predictable 4-byte-per-pixel format
+			let context = CGContext(
+				data: pixelData,
+				width: width,
+				height: height,
+				bitsPerComponent: 8,
+				bytesPerRow: bytesPerRow,
+				space: colorSpace,
+				bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+			)!
+
+			context.draw(
+				cgImage,
+				in: CGRect(
+					x: 0,
+					y: 0,
+					width: width,
+					height: height
+				)
+			)
+
+			// Create the GPU texture that will hold those pixels
+			let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+				pixelFormat: .rgba8Unorm_srgb,
+				width: width,
+				height: height,
+				mipmapped: false
+			)
+
+			let texture = device.makeTexture(
+				descriptor: descriptor
+			)!
+
+			// Copy the decoded pixels into Metal's texture memory
+			texture.replace(
+				region: MTLRegionMake2D(
+					0,
+					0,
+					width,
+					height
+				),
+				mipmapLevel: 0,
+				withBytes: pixelData,
+				bytesPerRow: bytesPerRow
+			)
+
+			return texture
+		} catch {
+			fatalError(
+				"Failed texture: \(textureURL.path) — \(error)"
+			)
+		}
 	}
 }

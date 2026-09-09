@@ -1,4 +1,5 @@
 import Metal
+import Foundation
 
 struct ChunkMaterialMesh {
 	let textureName: String
@@ -15,11 +16,11 @@ struct ChunkRenderMesh {
 func buildChunkRenderMesh(
 	from chunk: Chunk,
 	device: MTLDevice,
-	registry: BlockRegistry
+	modelFolder: URL
 ) -> ChunkRenderMesh? {
 	let verticesByTexture = ChunkMesher.buildMesh(
 		from: chunk,
-		registry: registry
+		modelFolder: modelFolder
 	)
 	
 	var materials: [ChunkMaterialMesh] = []
@@ -51,7 +52,8 @@ func buildChunkRenderMesh(
 
 func buildWorldMeshes(
 	from clientWorld: ClientWorld,
-	device: MTLDevice
+	device: MTLDevice,
+	modelFolder: URL
 ) -> [ChunkRenderMesh] {
 	var chunkMeshes: [ChunkRenderMesh] = []
 
@@ -59,7 +61,7 @@ func buildWorldMeshes(
 		if let mesh = buildChunkRenderMesh(
 			from: chunk,
 			device: device,
-			registry: clientWorld.blockRegistry
+			modelFolder: modelFolder
 		) {
 			chunkMeshes.append(mesh)
 		}

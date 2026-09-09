@@ -21,7 +21,7 @@ final class IntegratedServer {
 		x: Int,
 		y: Int,
 		z: Int,
-		block: Block,
+		block: BlockState,
 		to clientWorld: ClientWorld
 	) {
 		clientWorld.receiveBlockUpdate(

@@ -1,7 +1,8 @@
 import Foundation
 import ZIPFoundation
+import AppKit
 
-final class TextureDownloader {
+final class ResourceDownloader {
 	let minecraftVersion = "26.2"
 	
 	let versionManifestURL = URL(
@@ -65,24 +66,6 @@ final class TextureDownloader {
 		
 		try data.write(to: url)
 		return url
-	}
-	
-	func extractStoneTexture(from jarURL: URL) throws -> Data {
-		let archive = try Archive(url: jarURL, accessMode: .read)
-
-		guard let entry = archive[
-			"assets/minecraft/textures/block/stone.png"
-		] else {
-			throw NSError(domain: "TextureDownloader", code: 3)
-		}
-
-		var data = Data()
-
-		_ = try archive.extract(entry) { chunk in
-			data.append(chunk)
-		}
-
-		return data
 	}
 	
 	func downloadAllBlockAndItemTextures() async throws -> URL {
@@ -153,10 +136,81 @@ final class TextureDownloader {
 				textureData.append(chunk)
 			}
 
-			try textureData.write(to: destinationURL)
+			if let image = NSImage(data: textureData),
+			   let tiffData = image.tiffRepresentation,
+			   let bitmap = NSBitmapImageRep(data: tiffData),
+			   let pngData = bitmap.representation(using: .png, properties: [:]) {
+				try pngData.write(to: destinationURL)
+			} else {
+				try textureData.write(to: destinationURL)
+			}
 			
 		}
 
 		return textureFolder
+	}
+	
+	func downloadAllModelJSONs() async throws -> URL {
+		let manifestData = try await fetchVersionManifest()
+		let manifest = try decodeVersionManifest(from: manifestData)
+		
+		guard let version = findMinecraftVersion(in: manifest) else {
+			throw NSError(domain: "ResourceDownloader", code: 20)
+		}
+		
+		let metadataData = try await fetchVersionMetadata(for: version)
+		let metadata = try decodeVersionMetadata(from: metadataData)
+		
+		let jarData = try await fetchClientJar(from: metadata)
+		let jarURL = try saveClientJar(jarData)
+		let archive = try Archive(url: jarURL, accessMode: .read)
+		
+		let modelFolder = FileManager.default.urls(
+			for: .applicationSupportDirectory,
+			in: .userDomainMask
+		)[0]
+		.appendingPathComponent("Silicon Client")
+		.appendingPathComponent("assets/minecraft/models")
+		
+		try FileManager.default.createDirectory(
+			at: modelFolder,
+			withIntermediateDirectories: true
+		)
+		
+		for entry in archive {
+			let path = entry.path
+			guard
+				path.hasPrefix("assets/minecraft/models/"),
+				path.hasSuffix(".json")
+					else {
+				continue
+			}
+			
+			let relativePath = path.replacingOccurrences(
+				of: "assets/minecraft/models/",
+				with: ""
+			)
+			
+			let destinationURL =
+				modelFolder.appendingPathComponent(relativePath)
+			
+			let destinationFolder =
+				destinationURL.deletingLastPathComponent()
+			
+			try FileManager.default.createDirectory(
+				at: destinationFolder,
+				withIntermediateDirectories: true
+			)
+			
+			var modelData = Data()
+			
+			_ = try archive.extract(entry) { chunk in
+				modelData.append(chunk)
+			}
+			
+			try modelData.write(to: destinationURL)
+		}
+		
+		return modelFolder
 	}
 }

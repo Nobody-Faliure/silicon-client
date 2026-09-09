@@ -1,7 +1,5 @@
 final class ClientWorld {
 	var chunks: [Chunk] = []
-	
-	let blockRegistry = BlockRegistry.vanilla()
 
 	init() {
 	}
@@ -25,7 +23,7 @@ final class ClientWorld {
 		x: Int,
 		y: Int,
 		z: Int,
-		block: Block
+		block: BlockState
 	) {
 		for i in 0..<chunks.count {
 			if chunks[i].chunkX == chunkX &&

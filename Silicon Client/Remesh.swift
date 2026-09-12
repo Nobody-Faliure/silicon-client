@@ -16,11 +16,13 @@ struct ChunkRenderMesh {
 func buildChunkRenderMesh(
 	from chunk: Chunk,
 	device: MTLDevice,
-	modelFolder: URL
+	modelFolder: URL,
+	blockStateFolder: URL
 ) -> ChunkRenderMesh? {
 	let verticesByTexture = ChunkMesher.buildMesh(
 		from: chunk,
-		modelFolder: modelFolder
+		modelFolder: modelFolder,
+		blockStateFolder: blockStateFolder
 	)
 	
 	var materials: [ChunkMaterialMesh] = []
@@ -53,7 +55,8 @@ func buildChunkRenderMesh(
 func buildWorldMeshes(
 	from clientWorld: ClientWorld,
 	device: MTLDevice,
-	modelFolder: URL
+	modelFolder: URL,
+	blockStateFolder: URL
 ) -> [ChunkRenderMesh] {
 	var chunkMeshes: [ChunkRenderMesh] = []
 
@@ -61,7 +64,8 @@ func buildWorldMeshes(
 		if let mesh = buildChunkRenderMesh(
 			from: chunk,
 			device: device,
-			modelFolder: modelFolder
+			modelFolder: modelFolder,
+			blockStateFolder: blockStateFolder
 		) {
 			chunkMeshes.append(mesh)
 		}

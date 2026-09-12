@@ -1,11 +1,5 @@
 struct Block: Equatable {
 	let id: String
-
-	static let air = Block(id: "minecraft:air")
-	static let stone = Block(id: "minecraft:stone")
-	static let oak_log = Block(id: "minecraft:oak_log")
-	static let deepslate = Block(id: "minecraft:deepslate")
-	static let crafting_table = Block(id: "minecraft:crafting_table")
 }
 
 enum BlockFace: String {
@@ -34,7 +28,7 @@ struct Chunk {
 	
 	init(chunkX: Int, chunkZ: Int) {
 		self.blocks = Array(
-			repeating: BlockState(block: .air, properties: [:]),
+			repeating: BlockState(block: Block(id: "minecraft:air"), properties: [:]),
 			count: Chunk.width * Chunk.height * Chunk.depth
 		)
 		self.chunkX = chunkX

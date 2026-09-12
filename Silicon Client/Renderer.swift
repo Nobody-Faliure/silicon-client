@@ -92,10 +92,14 @@ final class Renderer: NSObject, MTKViewDelegate {
 				let modelFolder = try await resourceDownloader.downloadAllModelJSONs()
 				print("Finished downloading models to:", modelFolder.path)
 				
+				let blockStateFolder = try await resourceDownloader.downloadAllBlockStateJSONs()
+				print("Finished downloading block states to:", blockStateFolder.path)
+				
 				chunkMeshes = buildWorldMeshes(
 							from: clientWorld,
 							device: device,
-							modelFolder: modelFolder
+							modelFolder: modelFolder,
+							blockStateFolder: blockStateFolder
 						)
 			} catch {
 				print("Resource download failed:", error)
@@ -126,7 +130,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			0
 		)
 		
-		let moveSpeed: Float = 0.01
+		let moveSpeed: Float = 0.04
 		
 		if input.wPressed {
 			cameraPosition += forward * moveSpeed

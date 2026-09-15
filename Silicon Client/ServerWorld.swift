@@ -6,9 +6,9 @@ final class ServerWorld {
 
 		// Crafting table
 		chunk.setBlock(
-			x: 2,
+			x: 0,
 			y: 0,
-			z: 1,
+			z: 5,
 			block: BlockState(
 				block: Block(id: "minecraft:crafting_table"),
 				properties: [:]
@@ -17,29 +17,28 @@ final class ServerWorld {
 
 		// Upright oak log
 		chunk.setBlock(
-			x: 3,
+			x: 1,
 			y: 0,
-			z: 1,
+			z: 5,
 			block: BlockState(
 				block: Block(id: "minecraft:oak_log"),
 				properties: ["axis": "y"]
 			)
 		)
 
-		// Blast furnace
+		// Furnace
 		chunk.setBlock(
-			x: 4,
+			x: 2,
 			y: 0,
-			z: 1,
+			z: 5,
 			block: BlockState(
-				block: Block(id: "minecraft:blast_furnace"),
+				block: Block(id: "minecraft:furnace"),
 				properties: [
-					"facing": "east",
+					"facing": "north",
 					"lit": "true"
 				]
 			)
 		)
-
 		chunks.append(chunk)
 	}
 }

@@ -22,14 +22,16 @@ struct MinecraftBlockState: Decodable {
 
 struct MinecraftBlockStateVariant: Decodable {
 	let model: String
+	let x: Int?
+	let y: Int?
 }
 
 struct ChunkMesher {
 	// Gets the model name from the block ID
-	static func modelName(
+	static func variant(
 		for blockState: BlockState,
 		blockStateFolder: URL
-	) -> String {
+	) -> MinecraftBlockStateVariant {
 		let blockName = blockState.block.id
 			.replacingOccurrences(of: "minecraft:", with: "")
 		
@@ -60,7 +62,7 @@ struct ChunkMesher {
 				}
 			}
 			if matches {
-				return variant.model
+				return variant
 			}
 		}
 		fatalError("No matching blockstate variant found for \(blockState.block.id)")
@@ -117,10 +119,10 @@ struct ChunkMesher {
 		blockStateFolder: URL,
 		modelFolder: URL
 	) -> String {
-		let cleanName = modelName(for: blockState, blockStateFolder: blockStateFolder)
+		let cleanName = variant(for: blockState, blockStateFolder: blockStateFolder).model
 			.replacingOccurrences(of: "minecraft:", with: "")
 			.replacingOccurrences(of: "block/", with: "")
-
+		
 		let modelURL = modelFolder
 			.appendingPathComponent("block")
 			.appendingPathComponent(cleanName)
@@ -195,6 +197,14 @@ struct ChunkMesher {
 		
 		// texture name -> vertices using that texture
 		var verticesByTexture: [String: [Vertex]] = [:]
+		
+		func exposed(_ x: Int, _ y: Int, _ z: Int, _ dir: SIMD3<Float>) -> Bool {
+			let nx = x + Int(dir.x), ny = y + Int(dir.y), nz = z + Int(dir.z)
+			guard nx >= 0, nx < Chunk.width, ny >= 0, ny < Chunk.height, nz >= 0, nz < Chunk.depth else {
+				return true
+			}
+			return chunk.getBlock(x: nx, y: ny, z: nz) == Block(id: "minecraft:air")
+		}
 
 		for y in 0..<Chunk.height {
 			for z in 0..<Chunk.depth {
@@ -204,15 +214,18 @@ struct ChunkMesher {
 					let block = blockState.block
 
 					if block != Block(id: "minecraft:air") {
+						let yRot = variant(for: blockState, blockStateFolder: blockStateFolder).y ?? 0
 						
 						// Block position in world coordinates
 						let bx = Float(x + chunk.chunkX * Chunk.width)
 						let by = Float(y)
 						let bz = Float(z + chunk.chunkZ * Chunk.depth)
+						
+						let center = SIMD3<Float>(bx + 0.5, by + 0.5, bz + 0.5)
 
 						// North face
 						if z == Chunk.depth - 1 ||
-							chunk.getBlock(x: x, y: y, z: z + 1) == Block(id: "minecraft:air") {
+							exposed(x, y, z, rotate(yRot, around: SIMD3<Float>(0, 0, 0), SIMD3<Float>(0, 0, 1))) {
 
 							verticesByTexture[
 								textureName(
@@ -222,19 +235,19 @@ struct ChunkMesher {
 								),
 								default: []
 							].append(contentsOf: [
-								Vertex(position: SIMD3<Float>(bx, by, bz + 1), uv: SIMD2<Float>(0, 1)),
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz + 1), uv: SIMD2<Float>(1, 1)),
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz + 1), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz + 1)), uv: SIMD2<Float>(0, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz + 1)), uv: SIMD2<Float>(1, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz + 1)), uv: SIMD2<Float>(1, 0)),
 
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz + 1), uv: SIMD2<Float>(1, 0)),
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz + 1), uv: SIMD2<Float>(0, 0)),
-								Vertex(position: SIMD3<Float>(bx, by, bz + 1), uv: SIMD2<Float>(0, 1))
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz + 1)), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz + 1)), uv: SIMD2<Float>(0, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz + 1)), uv: SIMD2<Float>(0, 1))
 							])
 						}
 
 						// South face
 						if z == 0 ||
-							chunk.getBlock(x: x, y: y, z: z - 1) == Block(id: "minecraft:air") {
+							exposed(x, y, z, rotate(yRot, around: SIMD3<Float>(0, 0, 0), SIMD3<Float>(0, 0, -1))) {
 
 							verticesByTexture[
 								textureName(
@@ -244,19 +257,19 @@ struct ChunkMesher {
 								),
 								default: []
 							].append(contentsOf: [
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz), uv: SIMD2<Float>(0, 1)),
-								Vertex(position: SIMD3<Float>(bx, by, bz), uv: SIMD2<Float>(1, 1)),
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz)), uv: SIMD2<Float>(0, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz)), uv: SIMD2<Float>(1, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz)), uv: SIMD2<Float>(1, 0)),
 
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz), uv: SIMD2<Float>(1, 0)),
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz), uv: SIMD2<Float>(0, 0)),
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz), uv: SIMD2<Float>(0, 1))
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz)), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz)), uv: SIMD2<Float>(0, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz)), uv: SIMD2<Float>(0, 1))
 							])
 						}
 
 						// West face
 						if x == 0 ||
-							chunk.getBlock(x: x - 1, y: y, z: z) == Block(id: "minecraft:air") {
+							exposed(x, y, z, rotate(yRot, around: SIMD3<Float>(0, 0, 0), SIMD3<Float>(-1, 0, 0))) {
 
 							verticesByTexture[
 								textureName(
@@ -266,19 +279,19 @@ struct ChunkMesher {
 								),
 								default: []
 							].append(contentsOf: [
-								Vertex(position: SIMD3<Float>(bx, by, bz), uv: SIMD2<Float>(0, 1)),
-								Vertex(position: SIMD3<Float>(bx, by, bz + 1), uv: SIMD2<Float>(1, 1)),
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz + 1), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz)), uv: SIMD2<Float>(0, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz + 1)), uv: SIMD2<Float>(1, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz + 1)), uv: SIMD2<Float>(1, 0)),
 
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz + 1), uv: SIMD2<Float>(1, 0)),
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz), uv: SIMD2<Float>(0, 0)),
-								Vertex(position: SIMD3<Float>(bx, by, bz), uv: SIMD2<Float>(0, 1))
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz + 1)), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz)), uv: SIMD2<Float>(0, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz)), uv: SIMD2<Float>(0, 1))
 							])
 						}
 
 						// East face
 						if x == Chunk.width - 1 ||
-							chunk.getBlock(x: x + 1, y: y, z: z) == Block(id: "minecraft:air") {
+							exposed(x, y, z, rotate(yRot, around: SIMD3<Float>(0, 0, 0), SIMD3<Float>(1, 0, 0))) {
 
 							verticesByTexture[
 								textureName(
@@ -288,19 +301,20 @@ struct ChunkMesher {
 								),
 								default: []
 							].append(contentsOf: [
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz + 1), uv: SIMD2<Float>(0, 1)),
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz), uv: SIMD2<Float>(1, 1)),
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz + 1)), uv: SIMD2<Float>(0, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz)), uv: SIMD2<Float>(1, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz)), uv: SIMD2<Float>(1, 0)),
 
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz), uv: SIMD2<Float>(1, 0)),
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz + 1), uv: SIMD2<Float>(0, 0)),
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz + 1), uv: SIMD2<Float>(0, 1))
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz)), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz + 1)), uv: SIMD2<Float>(0, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz + 1)), uv: SIMD2<Float>(0, 1))
 							])
+							
 						}
 
 						// Top face
 						if y == Chunk.height - 1 ||
-							chunk.getBlock(x: x, y: y + 1, z: z) == Block(id: "minecraft:air") {
+							exposed(x, y, z, rotate(yRot, around: SIMD3<Float>(0, 0, 0), SIMD3<Float>(0, 1, 0))) {
 
 							verticesByTexture[
 								textureName(
@@ -310,19 +324,19 @@ struct ChunkMesher {
 								),
 								default: []
 							].append(contentsOf: [
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz + 1), uv: SIMD2<Float>(0, 1)),
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz + 1), uv: SIMD2<Float>(1, 1)),
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz + 1)), uv: SIMD2<Float>(0, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz + 1)), uv: SIMD2<Float>(1, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz)), uv: SIMD2<Float>(1, 0)),
 
-								Vertex(position: SIMD3<Float>(bx + 1, by + 1, bz), uv: SIMD2<Float>(1, 0)),
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz), uv: SIMD2<Float>(0, 0)),
-								Vertex(position: SIMD3<Float>(bx, by + 1, bz + 1), uv: SIMD2<Float>(0, 1))
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by + 1, bz)), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz)), uv: SIMD2<Float>(0, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by + 1, bz + 1)), uv: SIMD2<Float>(0, 1))
 							])
 						}
 
 						// Bottom face
 						if y == 0 ||
-							chunk.getBlock(x: x, y: y - 1, z: z) == Block(id: "minecraft:air") {
+							exposed(x, y, z, rotate(yRot, around: SIMD3<Float>(0, 0, 0), SIMD3<Float>(0, -1, 0))) {
 
 							verticesByTexture[
 								textureName(
@@ -332,13 +346,13 @@ struct ChunkMesher {
 								),
 								default: []
 							].append(contentsOf: [
-								Vertex(position: SIMD3<Float>(bx, by, bz), uv: SIMD2<Float>(0, 1)),
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz), uv: SIMD2<Float>(1, 1)),
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz + 1), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz)), uv: SIMD2<Float>(0, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz)), uv: SIMD2<Float>(1, 1)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz + 1)), uv: SIMD2<Float>(1, 0)),
 
-								Vertex(position: SIMD3<Float>(bx + 1, by, bz + 1), uv: SIMD2<Float>(1, 0)),
-								Vertex(position: SIMD3<Float>(bx, by, bz + 1), uv: SIMD2<Float>(0, 0)),
-								Vertex(position: SIMD3<Float>(bx, by, bz), uv: SIMD2<Float>(0, 1))
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx + 1, by, bz + 1)), uv: SIMD2<Float>(1, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz + 1)), uv: SIMD2<Float>(0, 0)),
+								Vertex(position: rotate(yRot, around: center, SIMD3<Float>(bx, by, bz)), uv: SIMD2<Float>(0, 1))
 							])
 						}
 					}
@@ -347,5 +361,14 @@ struct ChunkMesher {
 		}
 
 		return verticesByTexture
+	}
+	static func rotate(_ yRot: Int, around c: SIMD3<Float>, _ pos: SIMD3<Float>) -> SIMD3<Float> {
+		let d = pos - c
+		switch yRot {
+		case 90:  return c + SIMD3<Float>( d.z, d.y, -d.x)
+		case 180: return c + SIMD3<Float>(-d.x, d.y, -d.z)
+		case 270: return c + SIMD3<Float>(-d.z, d.y,  d.x)
+		default:  return pos
+		}
 	}
 }

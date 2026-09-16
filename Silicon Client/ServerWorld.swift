@@ -22,7 +22,7 @@ final class ServerWorld {
 			z: 5,
 			block: BlockState(
 				block: Block(id: "minecraft:oak_log"),
-				properties: ["axis": "y"]
+				properties: ["axis": "z"]
 			)
 		)
 

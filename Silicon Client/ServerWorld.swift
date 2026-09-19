@@ -39,6 +39,42 @@ final class ServerWorld {
 				]
 			)
 		)
+		// Anvils, one per facing
+		let facings = ["north", "east", "south", "west"]
+
+		for (offset, facing) in facings.enumerated() {
+			chunk.setBlock(
+				x: offset,
+				y: 0,
+				z: 7,
+				block: BlockState(
+					block: Block(id: "minecraft:anvil"),
+					properties: ["facing": facing]
+				)
+			)
+		}
+
+		// Damaged variants share the anvil model
+		chunk.setBlock(
+			x: 0,
+			y: 0,
+			z: 9,
+			block: BlockState(
+				block: Block(id: "minecraft:chipped_anvil"),
+				properties: ["facing": "south"]
+			)
+		)
+
+		chunk.setBlock(
+			x: 1,
+			y: 0,
+			z: 9,
+			block: BlockState(
+				block: Block(id: "minecraft:damaged_anvil"),
+				properties: ["facing": "south"]
+			)
+		)
+
 		chunks.append(chunk)
 	}
 }

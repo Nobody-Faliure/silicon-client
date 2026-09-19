@@ -354,9 +354,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 		.appendingPathComponent("Silicon Client")
 		.appendingPathComponent("assets/minecraft/textures/block")
 
-		// Convert "minecraft:block/stone" into "stone.png"
+		// Convert "minecraft:block/stone" or "block/stone" into "stone.png"
 		let textureName = name
-			.replacingOccurrences(of: "minecraft:block/", with: "")
+			.replacingOccurrences(of: "minecraft:", with: "")
+			.replacingOccurrences(of: "block/", with: "")
 
 		let textureURL = texturesFolder
 			.appendingPathComponent(textureName)

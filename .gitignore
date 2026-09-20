@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Xcode per-user state (breakpoints, window layout, scheme preferences)
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Build output
+build/
+DerivedData/
+
+# Swift Package Manager
+# Package.resolved is intentionally tracked so everyone builds against the
+# same dependency versions.
+.build/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/

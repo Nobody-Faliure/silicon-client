@@ -16,28 +16,22 @@ struct BlockState: Hashable {
 	let properties: [String: String]
 }
 
-struct Chunk {
+struct Section {
 	var blocks: [BlockState]
-	
-	var chunkX: Int
-	var chunkZ: Int
 	
 	static let width = 16
 	static let depth = 16
 	static let height = 16
 	
-	init(chunkX: Int, chunkZ: Int) {
+	init() {
 		self.blocks = Array(
 			repeating: BlockState(block: Block(id: "minecraft:air"), properties: [:]),
-			count: Chunk.width * Chunk.height * Chunk.depth
+			count: Section.width * Section.height * Section.depth
 		)
-		self.chunkX = chunkX
-		self.chunkZ = chunkZ
 	}
 	
-	// Converts 3D chunk coordinates into one position in the flat block array.
 	func index(x: Int, y: Int, z: Int) -> Int {
-		return x + z * Chunk.width + y * Chunk.width * Chunk.depth
+		return x + z * Section.width + y * Section.width * Section.depth
 	}
 	
 	func getBlock(x: Int, y: Int, z: Int) -> Block {
@@ -50,5 +44,41 @@ struct Chunk {
 	
 	mutating func setBlock(x: Int, y: Int, z: Int, block: BlockState) {
 		blocks[index(x: x, y: y, z: z)] = block
+	}
+}
+
+struct Chunk {
+	var sections: [Section]
+	
+	var chunkX: Int
+	var chunkZ: Int
+	
+	static let sectionCount = 24     // -64 to 319
+
+	var height: Int { sections.count * Section.height }
+
+	init(chunkX: Int, chunkZ: Int) {
+		self.sections = (0..<Chunk.sectionCount).map { _ in Section() }
+		self.chunkX = chunkX
+		self.chunkZ = chunkZ
+	}
+	
+	func locate(_ y: Int) -> (section: Int, localY: Int) {
+		return ((y + 64) / Section.height, (y + 64) % Section.height)
+	}
+	
+	func getBlock(x: Int, y: Int, z: Int) -> Block {
+		let location = locate(y)
+		return sections[location.0].getBlock(x: x, y: location.1, z: z)
+	}
+	
+	func getBlockState(x: Int, y: Int, z: Int) -> BlockState {
+		let location = locate(y)
+		return sections[location.0].getBlockState(x: x, y: location.1, z: z)
+	}
+	
+	mutating func setBlock(x: Int, y: Int, z: Int, block: BlockState) {
+		let location = locate(y)
+		return sections[location.0].setBlock(x: x, y: location.1, z: z, block: block)
 	}
 }

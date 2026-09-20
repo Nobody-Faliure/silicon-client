@@ -3,7 +3,11 @@ final class ClientWorld {
 
 	init() {
 	}
-
+	
+	func chunk(atX x: Int, z: Int) -> Chunk? {
+		return chunks.first { $0.chunkX == x && $0.chunkZ == z }
+	}
+	
 	func receiveChunk(_ newChunk: Chunk) {
 		for i in 0..<chunks.count {
 			if chunks[i].chunkX == newChunk.chunkX &&

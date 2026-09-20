@@ -420,10 +420,12 @@ struct ChunkMesher {
 	// anvil.png is collected together so it can be drawn in one go.
 	//
 	// Builds visible chunk faces grouped by texture
-	static func buildMesh(
+	static func buildSectionMesh(
 		from chunk: Chunk,
+		sectionIndex: Int,
 		modelFolder: URL,
-		blockStateFolder: URL
+		blockStateFolder: URL,
+		clientWorld: ClientWorld
 	) -> [String: [Vertex]] {
 		
 		// texture name -> vertices using that texture
@@ -442,13 +444,18 @@ struct ChunkMesher {
 		func hidden(_ x: Int, _ y: Int, _ z: Int, _ dir: SIMD3<Float>) -> Bool {
 			let nx = x + Int(dir.x), ny = y + Int(dir.y), nz = z + Int(dir.z)
 			
-			guard nx >= 0, nx < Chunk.width,
-				  ny >= 0, ny < Chunk.height,
-				  nz >= 0, nz < Chunk.depth else {
-				return false
+			let neighbourChunkX = chunk.chunkX + (nx >> 4)
+			let neighbourChunkZ = chunk.chunkZ + (nz >> 4)
+			
+			guard ny >= -64, ny < -64 + chunk.height else {
+				return false        // outside the world - draw the face
 			}
 			
-			let neighbour = chunk.getBlockState(x: nx, y: ny, z: nz)
+			guard let neighbourChunk = clientWorld.chunk(atX: neighbourChunkX, z: neighbourChunkZ) else {
+				return false        // not loaded - draw the face
+			}
+
+			let neighbour = neighbourChunk.getBlockState(x: nx & 15, y: ny, z: nz & 15)
 			
 			if neighbour.block == air {
 				return false
@@ -463,10 +470,11 @@ struct ChunkMesher {
 			)
 		}
 		
-		// Visit every position in the chunk, one block at a time.
-		for y in 0..<Chunk.height {
-			for z in 0..<Chunk.depth {
-				for x in 0..<Chunk.width {
+		// Visit every position in the section, one block at a time.
+		let bottomY = -64 + sectionIndex * Section.height
+		for y in bottomY..<bottomY + Section.height {
+			for z in 0..<Section.depth {
+				for x in 0..<Section.width {
 					
 					let blockState = chunk.getBlockState(x: x, y: y, z: z)
 					
@@ -488,9 +496,9 @@ struct ChunkMesher {
 					)
 					
 					// Block position in world coordinates
-					let bx = Float(x + chunk.chunkX * Chunk.width)
+					let bx = Float(x + chunk.chunkX * Section.width)
 					let by = Float(y)
-					let bz = Float(z + chunk.chunkZ * Chunk.depth)
+					let bz = Float(z + chunk.chunkZ * Section.depth)
 					
 					// origin is the block's near-bottom-left corner, which the
 					// box measurements are added onto. center is its middle,

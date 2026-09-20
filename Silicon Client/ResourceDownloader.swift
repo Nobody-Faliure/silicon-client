@@ -151,6 +151,11 @@ final class ResourceDownloader {
 
 			let destinationFolder =
 				destinationURL.deletingLastPathComponent()
+			
+			// If it already exists don't redownload it
+			if FileManager.default.fileExists(atPath: destinationURL.path) {
+				continue
+			}
 
 			// Make folders such as block/ and item/ if needed
 			try FileManager.default.createDirectory(

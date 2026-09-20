@@ -1,4 +1,4 @@
-struct Block: Equatable {
+struct Block: Hashable {
 	let id: String
 }
 
@@ -11,7 +11,7 @@ enum BlockFace: String {
 	case west
 }
 
-struct BlockState {
+struct BlockState: Hashable {
 	let block: Block
 	let properties: [String: String]
 }

@@ -35,6 +35,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	var chunkMeshes: [ChunkRenderMesh] = []
 	
+	let server = IntegratedServer()
+	
+	var modelFolder: URL?
+	var blockStateFolder: URL?
+	
+	private var textureCache: [String: MTLTexture] = [:]
+	
 	// Creates all Metal resources when Renderer starts
 	init(input: Input) {
 		
@@ -81,19 +88,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 		super.init()
 		
 		// Start the integrated server and receive its world
-		let server = IntegratedServer()
 		server.sendWorld(to: clientWorld)
 		
 		Task {
 			do {
-				let assetfolder = try await resourceDownloader.downloadAllBlockAndItemTextures()
-				print("Finished downloading textures to:", assetfolder.path)
+				_ = try await resourceDownloader.downloadAllBlockAndItemTextures()
 				
 				let modelFolder = try await resourceDownloader.downloadAllModelJSONs()
-				print("Finished downloading models to:", modelFolder.path)
+				self.modelFolder = modelFolder
 				
 				let blockStateFolder = try await resourceDownloader.downloadAllBlockStateJSONs()
-				print("Finished downloading block states to:", blockStateFolder.path)
+				self.blockStateFolder = blockStateFolder
 				
 				chunkMeshes = buildWorldMeshes(
 							from: clientWorld,
@@ -347,6 +352,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	// Finds a downloaded Minecraft texture by its resource name
 	func texture(named name: String) -> MTLTexture {
+		if let cached = textureCache[name] {
+			return cached
+		}
 		let texturesFolder = FileManager.default.urls(
 			for: .applicationSupportDirectory,
 			in: .userDomainMask
@@ -363,7 +371,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 			.appendingPathComponent(textureName)
 			.appendingPathExtension("png")
 
-		return loadMinecraftTexture(from: textureURL)
+		let loaded = loadMinecraftTexture(from: textureURL)
+		textureCache[name] = loaded
+		return loaded
 	}
 
 	// Decodes a Minecraft PNG into raw pixels and creates a Metal texture

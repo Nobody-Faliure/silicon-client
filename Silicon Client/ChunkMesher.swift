@@ -1,12 +1,37 @@
 import Foundation
 
-// Minecraft model JSON
+// Turns the blocks in a chunk into triangles the GPU can draw.
+//
+// Minecraft describes a block across several JSON files, and this file walks
+// that trail and flattens it into vertices:
+//
+//   blockstates/anvil.json   which drawing to use, and how it is turned
+//         |                  ("facing=north" -> model "anvil", turned 180)
+//         v
+//   models/block/anvil.json  the drawing - but it mostly just says
+//         |                  "I am a template_anvil with a different top"
+//         v
+//   models/block/template_anvil.json   the real shape: four boxes
+//         |
+//         v
+//   models/block/block.json            the root; nothing more to inherit
+//
+// The structs below mirror those files one-for-one so JSONDecoder can read
+// them. The functions further down do the walking, merging and triangle
+// building.
+
+// One models/block/*.json file.
+// Every field is optional because a file may inherit instead of declaring:
+// anvil.json has only a parent and one texture, and gets its shape from
+// template_anvil.json further up the chain.
 struct MinecraftModel: Decodable {
-	let parent: String?
-	let textures: [String: String]?
-	let elements: [MinecraftModelElement]?
+	let parent: String?                      // the file this one inherits from
+	let textures: [String: String]?          // nickname -> picture, e.g. "body" -> "block/anvil"
+	let elements: [MinecraftModelElement]?   // the boxes making up the shape
 }
 
+// One box in a shape. A plain cube has a single element spanning the whole
+// block; an anvil has four stacked boxes of different sizes.
 struct MinecraftModelElement: Decodable {
 	let from: [Float]                        // one corner of the box, 0–16 model space
 	let to: [Float]                          // opposite corner
@@ -14,6 +39,8 @@ struct MinecraftModelElement: Decodable {
 	let faces: [String: MinecraftModelFace]?
 }
 
+// One side of one box. A box may leave sides out entirely - the anvil's
+// middle boxes have no "down" face, because nothing could ever see it.
 struct MinecraftModelFace: Decodable {
 	let texture: String    // "#top" — which image
 	let uv: [Float]?       // [x1,y1,x2,y2] slice of the texture; absent → whole texture
@@ -22,6 +49,8 @@ struct MinecraftModelFace: Decodable {
 	let tintindex: Int?    // biome tint flag; absent → none
 }
 
+// An angled box, used by torches, levers and buttons.
+// Read from the file but not used yet - nothing that tilts is drawn.
 struct MinecraftElementRotation: Decodable {
 	let origin: [Float]    // pivot point [x,y,z]
 	let axis: String       // "x" | "y" | "z"
@@ -29,23 +58,38 @@ struct MinecraftElementRotation: Decodable {
 	let rescale: Bool?     // absent → false
 }
 
+// The finished answer for one block, after the whole inheritance chain has
+// been collapsed into a single shape plus a single picture lookup.
+// This is what the triangle-building code actually reads.
 struct ResolvedModel {
-	let textures: [String: String]
-	let elements: [MinecraftModelElement]
+	let textures: [String: String]     // nicknames fully merged, child wins
+	let elements: [MinecraftModelElement]   // the winning shape
 }
 
-// Minecraft blockstate JSON
+// One blockstates/*.json file: every placement a block can have.
+// The keys are property lists, so anvil.json has four entries keyed
+// "facing=north", "facing=east", "facing=south", "facing=west".
 struct MinecraftBlockState: Decodable {
 	let variants: [String: MinecraftBlockStateVariant]
 }
 
+// What one placement resolves to: which drawing, and how far it is spun.
 struct MinecraftBlockStateVariant: Decodable {
-	let model: String
-	let x: Int?
-	let y: Int?
+	let model: String   // e.g. "minecraft:block/anvil"
+	let x: Int?         // tilt in degrees, absent means 0
+	let y: Int?         // spin in degrees, absent means 0
 }
 
 struct ChunkMesher {
+	// It needs a type and a starting value, e.g.
+	static var modelCache: [BlockState: ResolvedModel] = [:]
+	
+	// Reads a blockstates/*.json file and picks the entry matching this
+	// block's properties.
+	//
+	// For an anvil with ["facing": "north"] it scans the four entries and
+	// returns the one keyed "facing=north" - model "anvil", spun 180.
+	//
 	// Gets the model name from the block ID
 	static func variant(
 		for blockState: BlockState,
@@ -66,6 +110,9 @@ struct ChunkMesher {
 		let properties = blockState.properties
 		let variants = blockStateJSON.variants
 		
+		// Check each entry until one matches every property we were given.
+		// A key can list several, e.g. "facing=north,lit=true", and all of
+		// them have to agree before the entry counts as a match.
 		for (variantKey, variant) in variants {
 			var matches = true
 			for property in variantKey.split(separator: ",") {
@@ -87,7 +134,12 @@ struct ChunkMesher {
 		fatalError("No matching blockstate variant found for \(blockState.block.id)")
 	}
 	
-	// Loads one model JSON file
+	// Reads a file off the disk and turns its text into Swift values.
+	//
+	// This is the slow line in the whole file - opening and decoding takes
+	// roughly 25 microseconds, and the mesher calls it thousands of times
+	// per chunk unless results are remembered.
+	//
 	// Loads and decodes any JSON file
 	static func loadJSON<T: Decodable>(
 		from url: URL,
@@ -101,6 +153,12 @@ struct ChunkMesher {
 		)
 	}
 	
+	// Walks the inheritance trail and collects every file along it.
+	//
+	// Starting at anvil.json this returns
+	//   [anvil, template_anvil, block]
+	// in child-first order. Each step is another disk read.
+	//
 	// Follows parent models and stores the whole chain
 	static func modelChain(
 		startingWith model: MinecraftModel,
@@ -131,8 +189,16 @@ struct ChunkMesher {
 		return chain
 	}
 	
+	// Squashes a chain collected above into one ResolvedModel.
+	// Pure bookkeeping - reads nothing from disk.
+	//
+	// Not to be confused with resolvedModel(for:) below, which is the one
+	// that does the loading. This one only merges what was already loaded.
 	static func resolveModel(chain: [MinecraftModel]) -> ResolvedModel {
 		// elements (shape): first model that has any wins, then stop
+		// Shape: walk child-first and take the first file that declares one.
+		// anvil.json declares none, template_anvil.json declares four boxes,
+		// so those win and block.json is never consulted.
 		var elements: [MinecraftModelElement] = []
 		for model in chain {
 			if let e = model.elements {
@@ -142,6 +208,10 @@ struct ChunkMesher {
 		}
 
 		// textures (lookup table): merge every model's, child wins
+		// Pictures: walk backwards, furthest ancestor first, letting each
+		// file overwrite what came before. Because the child is written
+		// last it wins - which is how the anvil keeps template_anvil's body
+		// picture but swaps in its own anvil_top.
 		var textures: [String: String] = [:]
 		for model in chain.reversed() {
 			if let t = model.textures {
@@ -154,12 +224,22 @@ struct ChunkMesher {
 		return ResolvedModel(textures: textures, elements: elements)
 	}
 	
+	// The full lookup for one block: find the drawing, load it, follow its
+	// parents, merge them, hand back the finished shape and pictures.
+	//
+	// Every disk read for a block happens underneath this call, which makes
+	// it the place worth remembering answers in.
+	//
 	// Loads and resolves the whole model for one block state
 	static func resolvedModel(
 		for blockState: BlockState,
 		blockStateFolder: URL,
 		modelFolder: URL
 	) -> ResolvedModel {
+		if let cached = modelCache[blockState] {
+			return cached
+		}
+		
 		let cleanName = variant(for: blockState, blockStateFolder: blockStateFolder).model
 			.replacingOccurrences(of: "minecraft:", with: "")
 			.replacingOccurrences(of: "block/", with: "")
@@ -174,15 +254,21 @@ struct ChunkMesher {
 			as: MinecraftModel.self
 		)
 		
-		return resolveModel(
-			chain: modelChain(
-				startingWith: model,
-				modelFolder: modelFolder
-			)
+		let resolved = resolveModel(
+				chain: modelChain(
+						startingWith: model,
+						modelFolder: modelFolder
+			 )
 		)
+
+	 modelCache[blockState] = resolved
+	 return resolved
 	}
 	
 	// Turns a reference like "#body" into a real texture name
+	// Follows nicknames until a real picture name falls out.
+	// A face says "#body", the lookup says body -> "block/anvil", so that
+	// is the answer. Loops because a nickname may point at another nickname.
 	static func resolveTexture(
 		_ reference: String,
 		in resolved: ResolvedModel
@@ -203,6 +289,9 @@ struct ChunkMesher {
 	}
 	
 	// True when the model is a single full-size box, so it hides whatever is behind it
+	// Only a single box filling the block edge to edge can hide the face
+	// behind it. An anvil cannot, which is why the ground under one still
+	// draws its top face instead of leaving a hole.
 	static func isFullCube(_ resolved: ResolvedModel) -> Bool {
 		guard resolved.elements.count == 1,
 			  let element = resolved.elements.first else {
@@ -214,6 +303,13 @@ struct ChunkMesher {
 			&& element.rotation == nil
 	}
 	
+	// Turns a face name into the direction it points, used to find the
+	// neighbouring block sitting against it.
+	//
+	// Careful: north is +Z here, the opposite of real Minecraft. The whole
+	// file is consistent about it, so everything lines up, but it means this
+	// world is a mirror image of the real game's.
+	//
 	// Which way a named face points
 	static func direction(of faceKey: String) -> SIMD3<Float> {
 		switch faceKey {
@@ -227,6 +323,13 @@ struct ChunkMesher {
 		}
 	}
 	
+	// The four corners of one face, built from the box's two opposite
+	// corners f and t.
+	//
+	// Order matters twice over: faceUVs() below hands back texture
+	// coordinates in this same order, and buildMesh() relies on the
+	// direction the corners travel to keep faces pointing outward.
+	//
 	// The four corners of one element face, ordered top-left, top-right,
 	// bottom-right, bottom-left as seen from outside the block
 	static func corners(
@@ -284,6 +387,12 @@ struct ChunkMesher {
 	
 	// The texture coordinates matching corners(), after the face's own rotation.
 	// uv is [x1, y1, x2, y2] in 0-16 texture space; absent means the whole image.
+	// Which patch of the picture goes on this face, and which way up.
+	//
+	// The anvil leans on this heavily - nearly every one of its faces takes
+	// a different slice of the same anvil.png, several of them turned. A
+	// backwards slice like [4,2,0,14], where the first number is larger,
+	// mirrors the picture, and that falls out of the arithmetic for free.
 	static func faceUVs(_ face: MinecraftModelFace) -> [SIMD2<Float>] {
 		let uv = face.uv ?? [0, 0, 16, 16]
 		
@@ -304,6 +413,12 @@ struct ChunkMesher {
 		return (0..<4).map { base[($0 + offset) % 4] }
 	}
 	
+	// Walks every block in the chunk and produces the triangles for it.
+	//
+	// The returned dictionary is grouped by picture name because the
+	// renderer can only bind one picture at a time - every face using
+	// anvil.png is collected together so it can be drawn in one go.
+	//
 	// Builds visible chunk faces grouped by texture
 	static func buildMesh(
 		from chunk: Chunk,
@@ -316,6 +431,13 @@ struct ChunkMesher {
 		
 		let air = Block(id: "minecraft:air")
 		
+		// Decides whether a face can be skipped because something solid is
+		// pressed against it. Skipping faces nobody can see is most of what
+		// keeps the triangle count down.
+		//
+		// Off the edge of the chunk counts as not hidden, so boundary faces
+		// are always drawn rather than being wrongly cut away.
+		//
 		// A face is only hidden when a full-size solid block sits against it
 		func hidden(_ x: Int, _ y: Int, _ z: Int, _ dir: SIMD3<Float>) -> Bool {
 			let nx = x + Int(dir.x), ny = y + Int(dir.y), nz = z + Int(dir.z)
@@ -341,6 +463,7 @@ struct ChunkMesher {
 			)
 		}
 		
+		// Visit every position in the chunk, one block at a time.
 		for y in 0..<Chunk.height {
 			for z in 0..<Chunk.depth {
 				for x in 0..<Chunk.width {
@@ -351,6 +474,9 @@ struct ChunkMesher {
 						continue
 					}
 					
+					// Two separate lookups: the spin comes from the blockstate
+					// entry, the shape from the model files. Both read the
+					// disk, and both repeat for every block in the chunk.
 					let v = variant(for: blockState, blockStateFolder: blockStateFolder)
 					let xRot = v.x ?? 0
 					let yRot = v.y ?? 0
@@ -366,9 +492,14 @@ struct ChunkMesher {
 					let by = Float(y)
 					let bz = Float(z + chunk.chunkZ * Chunk.depth)
 					
+					// origin is the block's near-bottom-left corner, which the
+					// box measurements are added onto. center is its middle,
+					// which any spin turns around.
 					let origin = SIMD3<Float>(bx, by, bz)
 					let center = SIMD3<Float>(bx + 0.5, by + 0.5, bz + 0.5)
 					
+					// One pass per box. A cube has a single box; the anvil has
+					// four, so a single anvil runs this four times.
 					for element in resolved.elements {
 						
 						// Model space runs 0-16 across the block
@@ -384,8 +515,18 @@ struct ChunkMesher {
 							element.to[2]
 						) / 16
 						
+						// Only the sides the box actually declares. A missing
+						// side is simply absent here and never drawn.
 						for (faceKey, face) in element.faces ?? [:] {
 							
+							// A face is a candidate for skipping only if the file
+							// marked it as such. Most anvil faces are not marked,
+							// because its boxes sit inside the block where a
+							// neighbour could never cover them.
+							//
+							// The direction is spun first, so a block turned 180
+							// checks the neighbour it is really facing.
+							//
 							// Only faces that ask to be culled are ever dropped
 							if let cullface = face.cullface {
 								let dir = rotate(
@@ -406,6 +547,7 @@ struct ChunkMesher {
 								continue
 							}
 							
+							// Matching lists: corner 0 pairs with uv 0, and so on.
 							let uvs = faceUVs(face)
 							let texture = resolveTexture(face.texture, in: resolved)
 							
@@ -428,6 +570,14 @@ struct ChunkMesher {
 		return verticesByTexture
 	}
 	
+	// Spins a point around a centre by whole quarter turns.
+	//
+	// Used two ways: on corners, to turn the shape itself, and on direction
+	// vectors with a centre of zero, to work out which neighbour a turned
+	// face ends up looking at.
+	//
+	// Whole quarter turns only, so no trigonometry is needed - the
+	// coordinates just swap places and change sign.
 	static func rotate(_ xRot: Int, _ yRot: Int, around c: SIMD3<Float>, _ pos: SIMD3<Float>) -> SIMD3<Float> {
 		var d = pos - c
 		switch xRot {                                  // tilt around X axis (leaves d.x alone)

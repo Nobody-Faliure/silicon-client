@@ -70,7 +70,24 @@ struct ResolvedModel {
 // The keys are property lists, so anvil.json has four entries keyed
 // "facing=north", "facing=east", "facing=south", "facing=west".
 struct MinecraftBlockState: Decodable {
-	let variants: [String: MinecraftBlockStateVariant]
+	  let variants: [String: VariantChoice]
+}
+
+// A variant entry is either one model, or a list Minecraft picks from so
+// large areas of stone don't look tiled. Keep them all; picking comes later.
+struct VariantChoice: Decodable {
+	  let options: [MinecraftBlockStateVariant]
+
+	  init(from decoder: Decoder) throws {
+			  let container = try decoder.singleValueContainer()
+
+			  if let single = try? container.decode(MinecraftBlockStateVariant.self) {
+					  options = [single]
+					  return
+			  }
+
+			  options = try container.decode([MinecraftBlockStateVariant].self)
+	  }
 }
 
 // What one placement resolves to: which drawing, and how far it is spun.
@@ -82,7 +99,20 @@ struct MinecraftBlockStateVariant: Decodable {
 
 struct ChunkMesher {
 	// It needs a type and a starting value, e.g.
-	static var modelCache: [BlockState: ResolvedModel] = [:]
+	static var modelCache: [String: ResolvedModel] = [:]
+	
+	// Same position always picks the same option, so stone never reshuffles
+	  static func variantIndex(x: Int, y: Int, z: Int, count: Int) -> Int {
+		  if count == 1 { return 0 }
+
+		  var h = UInt64(bitPattern: Int64(x &* 3129871))
+			  ^ UInt64(bitPattern: Int64(z &* 116129781))
+			  ^ UInt64(bitPattern: Int64(y))
+
+		  h = h &* h &* 42317861 &+ h &* 11
+
+		  return Int((h >> 16) % UInt64(count))
+	  }
 	
 	// Reads a blockstates/*.json file and picks the entry matching this
 	// block's properties.
@@ -93,6 +123,7 @@ struct ChunkMesher {
 	// Gets the model name from the block ID
 	static func variant(
 		for blockState: BlockState,
+		x: Int, y: Int, z: Int,
 		blockStateFolder: URL
 	) -> MinecraftBlockStateVariant {
 		let blockName = blockState.block.id
@@ -128,7 +159,7 @@ struct ChunkMesher {
 				}
 			}
 			if matches {
-				return variant
+				return variant.options[variantIndex(x: x, y: y, z: z, count: variant.options.count)]
 			}
 		}
 		fatalError("No matching blockstate variant found for \(blockState.block.id)")
@@ -232,15 +263,14 @@ struct ChunkMesher {
 	//
 	// Loads and resolves the whole model for one block state
 	static func resolvedModel(
-		for blockState: BlockState,
-		blockStateFolder: URL,
+		modelName: String,
 		modelFolder: URL
 	) -> ResolvedModel {
-		if let cached = modelCache[blockState] {
+		if let cached = modelCache[modelName] {
 			return cached
 		}
 		
-		let cleanName = variant(for: blockState, blockStateFolder: blockStateFolder).model
+		let cleanName = modelName
 			.replacingOccurrences(of: "minecraft:", with: "")
 			.replacingOccurrences(of: "block/", with: "")
 		
@@ -261,7 +291,7 @@ struct ChunkMesher {
 			 )
 		)
 
-	 modelCache[blockState] = resolved
+	 modelCache[modelName] = resolved
 	 return resolved
 	}
 	
@@ -461,13 +491,8 @@ struct ChunkMesher {
 				return false
 			}
 			
-			return isFullCube(
-				resolvedModel(
-					for: neighbour,
-					blockStateFolder: blockStateFolder,
-					modelFolder: modelFolder
-				)
-			)
+			let nv = variant(for: neighbour, x: nx, y: ny, z: nz, blockStateFolder: blockStateFolder)
+			return isFullCube(resolvedModel(modelName: nv.model, modelFolder: modelFolder))
 		}
 		
 		// Visit every position in the section, one block at a time.
@@ -485,15 +510,11 @@ struct ChunkMesher {
 					// Two separate lookups: the spin comes from the blockstate
 					// entry, the shape from the model files. Both read the
 					// disk, and both repeat for every block in the chunk.
-					let v = variant(for: blockState, blockStateFolder: blockStateFolder)
+					let v = variant(for: blockState, x: x, y: y, z: z, blockStateFolder: blockStateFolder)
 					let xRot = v.x ?? 0
 					let yRot = v.y ?? 0
 					
-					let resolved = resolvedModel(
-						for: blockState,
-						blockStateFolder: blockStateFolder,
-						modelFolder: modelFolder
-					)
+					let resolved = resolvedModel(modelName: v.model, modelFolder: modelFolder)
 					
 					// Block position in world coordinates
 					let bx = Float(x + chunk.chunkX * Section.width)

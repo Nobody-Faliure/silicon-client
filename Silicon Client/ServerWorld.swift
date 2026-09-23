@@ -15,13 +15,30 @@ final class ServerWorld {
 			)
 		)
 
-		// Upright oak log
 		chunk.setBlock(
 			x: 1,
 			y: 0,
 			z: 5,
 			block: BlockState(
-				block: Block(id: "minecraft:oak_log"),
+				block: Block(id: "minecraft:stone"),
+				properties: ["axis": "z"]
+			)
+		)
+		chunk.setBlock(
+			x: 1,
+			y: 0,
+			z: 4,
+			block: BlockState(
+				block: Block(id: "minecraft:stone"),
+				properties: ["axis": "z"]
+			)
+		)
+		chunk.setBlock(
+			x: 1,
+			y: 0,
+			z: 3,
+			block: BlockState(
+				block: Block(id: "minecraft:stone"),
 				properties: ["axis": "z"]
 			)
 		)
@@ -30,7 +47,7 @@ final class ServerWorld {
 		chunk.setBlock(
 			x: 2,
 			y: 0,
-			z: 5,
+			z: 2,
 			block: BlockState(
 				block: Block(id: "minecraft:furnace"),
 				properties: [

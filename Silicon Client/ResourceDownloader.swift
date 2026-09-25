@@ -110,8 +110,6 @@ final class ResourceDownloader {
 		)[0]
 		.appendingPathComponent("Silicon Client")
 		.appendingPathComponent("assets/minecraft/textures")
-		
-		print("Texture folder:", textureFolder.path)
 
 		try FileManager.default.createDirectory(
 			at: textureFolder,

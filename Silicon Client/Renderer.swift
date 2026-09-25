@@ -378,8 +378,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 
 	// Decodes a Minecraft PNG into raw pixels and creates a Metal texture
 	func loadMinecraftTexture(from textureURL: URL) -> MTLTexture {
-		print("LOADING TEXTURE:", textureURL.path)
-
 		do {
 			let data = try Data(contentsOf: textureURL)
 

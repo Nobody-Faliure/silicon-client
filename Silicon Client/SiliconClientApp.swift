@@ -1,17 +1,20 @@
-//
-//  Silicon_ClientApp.swift
-//  Silicon Client
-//
-//  Created by Yuan Sun on 8/20/26.
-//
-
 import SwiftUI
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+	  static var server: MinecraftServer?
+
+	  func applicationWillTerminate(_ notification: Notification) {
+			  AppDelegate.server?.stop()
+	  }
+}
 
 @main
 struct Silicon_ClientApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-    }
+	  @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
+	  var body: some Scene {
+			  WindowGroup {
+					  ContentView()
+			  }
+	  }
 }

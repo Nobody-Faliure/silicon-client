@@ -18,6 +18,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let depthStencilState: MTLDepthStencilState
 	let pipelineState: MTLRenderPipelineState
 	
+	let minecraftServer = MinecraftServer()
+	
 	// Keyboard and mouse input
 	let input: Input
 	
@@ -114,10 +116,23 @@ final class Renderer: NSObject, MTKViewDelegate {
 							modelFolder: modelFolder,
 							blockStateFolder: blockStateFolder
 						)
+				
+				let support = URL(fileURLWithPath: NSHomeDirectory())
+					.appendingPathComponent("Library/Application Support/Silicon Client")
+					
+				let serverJar = try await resourceDownloader.downloadServerJar()
+					
+				minecraftServer.start(
+					jar: serverJar,
+					worldFolder: support.appendingPathComponent("Worlds/New World")
+				) {
+					print("server is ready")
+				}
 			} catch {
 				print("Resource download failed:", error)
 			}
 		}
+		AppDelegate.server = minecraftServer
 	}
 	
 	func rebuildDirtySections() {

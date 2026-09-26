@@ -59,6 +59,7 @@ final class ResourceDownloader {
 
 	struct Downloads: Decodable {
 		let client: ClientDownload
+		let server: ClientDownload
 	}
 
 	// Contains the URL of the official client JAR
@@ -73,6 +74,13 @@ final class ResourceDownloader {
 		return data
 	}
 	
+	// Downloads the official Minecraft server JAR
+	func fetchServerJar(from metadata: VersionMetadata) async throws -> Data {
+		let url = metadata.downloads.server.url
+		let (data, _) = try await URLSession.shared.data(from: url)
+		return data
+	}
+	
 	// Saves the downloaded JAR into the temporary folder
 	func saveClientJar(_ data: Data) throws -> URL {
 		let url = FileManager.default.temporaryDirectory
@@ -80,6 +88,26 @@ final class ResourceDownloader {
 		
 		try data.write(to: url)
 		return url
+	}
+	
+	func saveServerJar(_ data: Data) throws -> URL {
+		let folder = FileManager.default.urls(
+			for: .applicationSupportDirectory,
+			in: .userDomainMask
+		)[0]
+			.appendingPathComponent("Silicon Client")
+			.appendingPathComponent("Versions")
+			.appendingPathComponent(minecraftVersion)
+
+		try FileManager.default.createDirectory(
+			at: folder,
+			withIntermediateDirectories: true
+		)
+
+		let jarURL = folder.appendingPathComponent("server.jar")
+		try data.write(to: jarURL)
+
+		return jarURL
 	}
 	
 	// Downloads the JAR and extracts all block/item textures
@@ -324,5 +352,36 @@ final class ResourceDownloader {
 		}
 		
 		return blockStateFolder
+	}
+	
+	// Downloads the server JAR once and keeps it
+	func downloadServerJar() async throws -> URL {
+		let existing = FileManager.default.urls(
+			for: .applicationSupportDirectory,
+			in: .userDomainMask
+		)[0]
+			.appendingPathComponent("Silicon Client")
+			.appendingPathComponent("Versions")
+			.appendingPathComponent(minecraftVersion)
+			.appendingPathComponent("server.jar")
+
+		if FileManager.default.fileExists(atPath: existing.path) {
+			print("Server JAR already downloaded")
+			return existing
+		}
+
+		let manifestData = try await fetchVersionManifest()
+		let manifest = try decodeVersionManifest(from: manifestData)
+
+		guard let version = findMinecraftVersion(in: manifest) else {
+			throw NSError(domain: "ResourceDownloader", code: 40)
+		}
+
+		let metadataData = try await fetchVersionMetadata(for: version)
+		let metadata = try decodeVersionMetadata(from: metadataData)
+		
+		let jarData = try await fetchServerJar(from: metadata)
+
+		return try saveServerJar(jarData)
 	}
 }

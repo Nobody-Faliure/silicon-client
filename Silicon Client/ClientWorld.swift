@@ -16,6 +16,18 @@ final class ClientWorld {
 		return chunks.first { $0.chunkX == x && $0.chunkZ == z }
 	}
 	
+	func getBlockState(worldX: Int, y: Int, worldZ: Int) -> BlockState? {
+		guard y >= Chunk.minY, y < Chunk.minY + Chunk.sectionCount * Section.height else {
+			return nil
+		}
+
+		guard let chunk = chunk(atX: worldX >> 4, z: worldZ >> 4) else {
+			return nil
+		}
+
+		return chunk.getBlockState(x: worldX & 15, y: y, z: worldZ & 15)
+	}
+	
 	func receiveChunk(_ newChunk: Chunk) {
 		for i in 0..<chunks.count {
 			if chunks[i].chunkX == newChunk.chunkX &&

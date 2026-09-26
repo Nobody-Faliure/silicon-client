@@ -451,6 +451,22 @@ struct ChunkMesher {
 		return (0..<4).map { base[($0 + offset) % 4] }
 	}
 	
+	static var fullCubeCache: [BlockState: Bool] = [:]
+
+	static func neighbourIsFullCube(
+			_ blockState: BlockState,
+			blockStateFolder: URL,
+			modelFolder: URL
+	  ) -> Bool {
+		  if let hit = fullCubeCache[blockState] { return hit }
+
+		  let v = variant(for: blockState, x: 0, y: 0, z: 0, blockStateFolder: blockStateFolder)
+		  let value = isFullCube(resolvedModel(modelName: v.model, modelFolder: modelFolder))
+
+		  fullCubeCache[blockState] = value
+		  return value
+	}
+	
 	// Walks every block in the chunk and produces the triangles for it.
 	//
 	// The returned dictionary is grouped by picture name because the
@@ -499,8 +515,7 @@ struct ChunkMesher {
 				return false
 			}
 			
-			let nv = variant(for: neighbour, x: nx, y: ny, z: nz, blockStateFolder: blockStateFolder)
-			return isFullCube(resolvedModel(modelName: nv.model, modelFolder: modelFolder))
+			return neighbourIsFullCube(neighbour, blockStateFolder: blockStateFolder, modelFolder: modelFolder)
 		}
 		
 		// Visit every position in the section, one block at a time.

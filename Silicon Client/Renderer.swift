@@ -30,6 +30,14 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var cameraYaw: Float = 0
 	var cameraPitch: Float = 0
 	
+	var lookDirection: SIMD3<Float> {
+		SIMD3<Float>(
+			sin(cameraYaw) * cos(cameraPitch),
+			-sin(cameraPitch),
+			cos(cameraYaw) * cos(cameraPitch)
+		)
+	}
+	
 	// Client-side copy of the world
 	var clientWorld: ClientWorld = ClientWorld()
 	
@@ -136,6 +144,26 @@ final class Renderer: NSObject, MTKViewDelegate {
 			}
 		}
 		clientWorld.dirtySections.removeAll()
+	}
+	
+	func raycast() -> (hit: SIMD3<Int>, placeAt: SIMD3<Int>)? {
+		let reach: Float = 4.5
+		let stepSize: Float = 0.05
+		let direction = lookDirection
+		
+		var previous = SIMD3<Int>(cameraPosition.rounded(.down))
+		
+		for step in 0...Int(reach / stepSize) {
+			let point = cameraPosition + direction * (Float(step) * stepSize)
+			let block = SIMD3<Int>(point.rounded(.down))
+			if block == previous { continue }
+			if let state = clientWorld.getBlockState(worldX: block.x, y: block.y, worldZ: block.z),
+			   state.block != Block(id: "minecraft:air") {
+				return (block, previous)
+			}
+			previous = block
+		}
+		return nil
 	}
 	
 	// Called repeatedly by MTKView to draw each frame

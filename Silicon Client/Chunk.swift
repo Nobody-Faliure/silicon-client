@@ -54,6 +54,7 @@ struct Chunk {
 	var chunkZ: Int
 	
 	static let sectionCount = 24     // -64 to 319
+	static let minY = -64
 
 	var height: Int { sections.count * Section.height }
 

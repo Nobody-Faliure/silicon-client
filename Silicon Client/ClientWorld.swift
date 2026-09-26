@@ -1,5 +1,13 @@
+struct SectionPosition: Hashable {
+	  let chunkX: Int
+	  let chunkZ: Int
+	  let sectionIndex: Int
+}
+
 final class ClientWorld {
 	var chunks: [Chunk] = []
+	
+	var dirtySections: Set<SectionPosition> = []
 
 	init() {
 	}
@@ -39,6 +47,12 @@ final class ClientWorld {
 					z: z,
 					block: block
 				)
+				
+				dirtySections.insert(SectionPosition(
+						chunkX: chunkX,
+						chunkZ: chunkZ,
+						sectionIndex: chunks[i].locate(y).section
+				))
 
 				return
 			}

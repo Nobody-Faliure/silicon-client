@@ -1,16 +1,17 @@
 import Metal
 import Foundation
 
-struct ChunkMaterialMesh {
+struct SectionMaterialMesh {
 	let textureName: String
 	let vertexBuffer: MTLBuffer
 	let vertexCount: Int
 }
 
-struct ChunkRenderMesh {
+struct SectionRenderMesh {
 	let chunkX: Int
 	let chunkZ: Int
-	let materials: [ChunkMaterialMesh]
+	let sectionIndex: Int
+	let materials: [SectionMaterialMesh]
 }
 
 func buildSectionRenderMesh(
@@ -20,7 +21,7 @@ func buildSectionRenderMesh(
 	modelFolder: URL,
 	blockStateFolder: URL,
 	clientWorld: ClientWorld
-) -> ChunkRenderMesh? {
+) -> SectionRenderMesh? {
 	let verticesByTexture = ChunkMesher.buildSectionMesh(
 		from: chunk,
 		sectionIndex: sectionIndex,
@@ -29,7 +30,7 @@ func buildSectionRenderMesh(
 		clientWorld: clientWorld
 	)
 	
-	var materials: [ChunkMaterialMesh] = []
+	var materials: [SectionMaterialMesh] = []
 
 	if verticesByTexture.isEmpty {
 		return nil
@@ -40,7 +41,7 @@ func buildSectionRenderMesh(
 			length: textureVertices.count * MemoryLayout<Vertex>.stride
 		)!
 		materials.append(
-			ChunkMaterialMesh(
+			SectionMaterialMesh(
 				textureName: textureName,
 				vertexBuffer: vertexBuffer,
 				vertexCount: textureVertices.count
@@ -49,9 +50,10 @@ func buildSectionRenderMesh(
 	}
 	
 
-	return ChunkRenderMesh(
+	return SectionRenderMesh(
 		chunkX: chunk.chunkX,
 		chunkZ: chunk.chunkZ,
+		sectionIndex: sectionIndex,
 		materials: materials
 	)
 }
@@ -61,8 +63,8 @@ func buildWorldMeshes(
 	device: MTLDevice,
 	modelFolder: URL,
 	blockStateFolder: URL
-) -> [ChunkRenderMesh] {
-	var chunkMeshes: [ChunkRenderMesh] = []
+) -> [SectionRenderMesh] {
+	var sectionMeshes: [SectionRenderMesh] = []
 
 	for chunk in clientWorld.chunks {
 		for sectionIndex in 0..<chunk.sections.count {
@@ -74,10 +76,10 @@ func buildWorldMeshes(
 				blockStateFolder: blockStateFolder,
 				clientWorld: clientWorld
 			) {
-				chunkMeshes.append(mesh)
+				sectionMeshes.append(mesh)
 			}
 		}
 	}
 
-	return chunkMeshes
+	return sectionMeshes
 }

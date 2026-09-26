@@ -33,7 +33,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	// Client-side copy of the world
 	var clientWorld: ClientWorld = ClientWorld()
 	
-	var chunkMeshes: [ChunkRenderMesh] = []
+	var sectionMeshes: [SectionRenderMesh] = []
 	
 	let server = IntegratedServer()
 	
@@ -100,7 +100,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 				let blockStateFolder = try await resourceDownloader.downloadAllBlockStateJSONs()
 				self.blockStateFolder = blockStateFolder
 				
-				chunkMeshes = buildWorldMeshes(
+				sectionMeshes = buildWorldMeshes(
 							from: clientWorld,
 							device: device,
 							modelFolder: modelFolder,
@@ -112,8 +112,37 @@ final class Renderer: NSObject, MTKViewDelegate {
 		}
 	}
 	
+	func rebuildDirtySections() {
+		guard let modelFolder, let blockStateFolder else { return }
+		for position in clientWorld.dirtySections {
+			guard let chunk = clientWorld.chunk(
+				atX: position.chunkX,
+				z: position.chunkZ
+			) else { continue }
+			sectionMeshes.removeAll {
+				$0.chunkX == position.chunkX
+				&& $0.chunkZ == position.chunkZ
+				&& $0.sectionIndex == position.sectionIndex
+			}
+			if let mesh = buildSectionRenderMesh(
+				from: chunk,
+				sectionIndex: position.sectionIndex,
+				device: device,
+				modelFolder: modelFolder,
+				blockStateFolder: blockStateFolder,
+				clientWorld: clientWorld
+			) {
+				sectionMeshes.append(mesh)
+			}
+		}
+		clientWorld.dirtySections.removeAll()
+	}
+	
 	// Called repeatedly by MTKView to draw each frame
 	func draw(in view: MTKView) {
+		if !clientWorld.dirtySections.isEmpty {
+							  rebuildDirtySections()
+					  }
 		
 		// Forward direction based on camera yaw
 		let forward = SIMD3<Float>(
@@ -277,7 +306,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		)
 		
 		// Draw current mesh
-		for mesh in chunkMeshes {
+		for mesh in sectionMeshes {
 			for material in mesh.materials {
 				let materialTexture = texture(named: material.textureName)
 				

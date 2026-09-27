@@ -5,6 +5,7 @@ import ImageIO
 struct Vertex {
 	let position: SIMD3<Float>
 	let uv: SIMD2<Float>
+	let tintIndex: Int32
 }
 
 // MTKViewDelegate lets Renderer receive draw calls from MTKView
@@ -393,7 +394,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		projectionMatrix = makePerspectiveMatrix(
 			fovY: 60 * .pi / 180,
 			aspect: aspect,
-			nearZ: 0.001,
+			nearZ: 0.1,
 			farZ: 1000
 		)
 	}
@@ -492,7 +493,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 				bitsPerComponent: 8,
 				bytesPerRow: bytesPerRow,
 				space: colorSpace,
-				bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+				bitmapInfo:  CGImageAlphaInfo.premultipliedLast.rawValue
 			)!
 
 			context.draw(

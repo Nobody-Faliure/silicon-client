@@ -91,6 +91,16 @@ final class ServerWorld {
 				properties: ["facing": "south"]
 			)
 		)
+		
+		chunk.setBlock(
+			x: 5,
+			y: 0,
+			z: 10,
+			block: BlockState(
+				block: Block(id: "minecraft:grass_block"),
+				properties: ["snowy": "false"]
+			)
+		)
 
 		chunks.append(chunk)
 	}

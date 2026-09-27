@@ -552,7 +552,7 @@ struct ChunkMesher {
 					
 					// One pass per box. A cube has a single box; the anvil has
 					// four, so a single anvil runs this four times.
-					for element in resolved.elements {
+					for (elementIndex, element) in resolved.elements.enumerated() {
 						
 						// Model space runs 0-16 across the block
 						let f = origin + SIMD3<Float>(
@@ -593,7 +593,15 @@ struct ChunkMesher {
 								}
 							}
 							
-							let positions = corners(faceKey: faceKey, from: f, to: t)
+							let overlaps = resolved.elements.prefix(elementIndex).contains {
+								$0.from == element.from && $0.to == element.to
+							}
+
+							let offset = overlaps
+								? direction(of: faceKey) * 0.0005
+								: SIMD3<Float>(repeating: 0)
+
+							let positions = corners(faceKey: faceKey, from: f, to: t).map { $0 + offset }
 							
 							if positions.isEmpty {
 								continue
@@ -609,7 +617,8 @@ struct ChunkMesher {
 								verticesByTexture[texture, default: []].append(
 									Vertex(
 										position: rotate(xRot, yRot, around: center, positions[i]),
-										uv: uvs[i]
+										uv: uvs[i],
+										tintIndex: Int32(face.tintindex ?? -1)
 									)
 								)
 							}

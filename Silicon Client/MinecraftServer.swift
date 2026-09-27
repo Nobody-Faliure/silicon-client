@@ -37,6 +37,29 @@ final class MinecraftServer {
 		try? FileManager.default.removeItem(at: pidFile)
 	}
 	
+	// Reads server-port out of server.properties
+	func serverPort() -> UInt16 {
+		guard let worldFolder else {
+			return 25565
+		}
+		
+		let file = worldFolder.appendingPathComponent("server.properties")
+		
+		guard let text = try? String(contentsOf: file, encoding: .utf8) else {
+			return 25565
+		}
+		
+		for line in text.split(separator: "\n") {
+			guard line.hasPrefix("server-port=") else {
+				continue
+			}
+			
+			return UInt16(line.dropFirst("server-port=".count)) ?? 25565
+		}
+		
+		return 25565
+	}
+	
 	func start(jar: URL, worldFolder: URL, onReady: @escaping () -> Void) {
 		self.worldFolder = worldFolder
 		killOrphan()

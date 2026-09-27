@@ -20,6 +20,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let pipelineState: MTLRenderPipelineState
 	
 	let minecraftServer = MinecraftServer()
+	let serverConnection = ServerConnection()
 	
 	// Keyboard and mouse input
 	let input: Input
@@ -128,6 +129,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 					worldFolder: support.appendingPathComponent("Worlds/New World")
 				) {
 					print("server is ready")
+					self.serverConnection.connect(host: "127.0.0.1", port: self.minecraftServer.serverPort())
 				}
 			} catch {
 				print("Resource download failed:", error)

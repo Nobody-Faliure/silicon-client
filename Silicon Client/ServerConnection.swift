@@ -3,6 +3,7 @@ import Network
 
 final class ServerConnection {
 	private var connection: NWConnection?
+	private var incoming = Data()
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -77,8 +78,8 @@ final class ServerConnection {
 	func receive() {
 		connection?.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
 			if let data, !data.isEmpty {
-				print("[net] received \(data.count) bytes")
-				print(data.prefix(48).map { String(format: "%02x", $0) }.joined(separator: " "))
+				self.incoming.append(data)
+				self.processPackets()
 			}
 			
 			if let error {
@@ -93,5 +94,31 @@ final class ServerConnection {
 			
 			self.receive()
 		}
+	}
+	
+	private func processPackets() {
+		while true {
+			var index = 0
+			
+			guard let length = VarInt.read(from: incoming, at: &index) else {
+				return
+			}
+			
+			let total = index + length
+			
+			guard incoming.count >= total else {
+				return
+			}
+			
+			let packet = incoming.subdata(in: index ..< total)
+			incoming = Data(incoming.dropFirst(total))
+			
+			handle(packet)
+		}
+	}
+	
+	private func handle(_ packet: Data) {
+		let hex = packet.prefix(24).map { String(format: "%02x", $0) }.joined(separator: " ")
+		print("[net] packet \(packet.count) bytes: \(hex)")
 	}
 }

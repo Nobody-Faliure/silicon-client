@@ -21,4 +21,28 @@ struct VarInt {
 		VarInt.write(bytes.count, to: &data)
 		data.append(contentsOf: bytes)
 	}
+	
+	static func read(from data: Data, at index: inout Int) -> Int? {
+		var result: UInt32 = 0
+		var shift = 0
+		
+		while shift < 35 {
+			guard index < data.count else {
+				return nil
+			}
+			
+			let byte = data[data.startIndex + index]
+			index += 1
+			
+			result |= UInt32(byte & 0x7F) << shift
+			
+			if byte & 0x80 == 0 {
+				return Int(Int32(bitPattern: result))
+			}
+			
+			shift += 7
+		}
+		
+		return nil
+	}
 }

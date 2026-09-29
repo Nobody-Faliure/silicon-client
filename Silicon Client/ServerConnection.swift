@@ -1,9 +1,18 @@
 import Foundation
 import Network
 
+enum ProtocolState {
+	case handshaking
+	case status
+	case login
+	case configuration
+	case play
+}
+
 final class ServerConnection {
 	private var connection: NWConnection?
 	private var incoming = Data()
+	private var protocolState: ProtocolState = .handshaking
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -18,8 +27,9 @@ final class ServerConnection {
 			case .ready:
 				print("[net] connected to \(host):\(port)")
 				self.receive()
-				self.sendHandshake(host: host, port: port, nextState: 1)
-				self.sendStatusRequest()
+				self.sendHandshake(host: host, port: port, nextState: 2)
+				self.protocolState = .login
+				self.sendLoginStart(username: "wreckStoner")
 			case .failed(let error):
 				print("[net] failed: \(error)")
 			case .waiting(let error):
@@ -37,7 +47,7 @@ final class ServerConnection {
 		var payload = Data()
 		
 		VarInt.write(0, to: &payload)
-		VarInt.write(-1, to: &payload)
+		VarInt.write(776, to: &payload)
 		
 		VarInt.writeString(host, to: &payload)
 		
@@ -120,5 +130,95 @@ final class ServerConnection {
 	private func handle(_ packet: Data) {
 		let hex = packet.prefix(24).map { String(format: "%02x", $0) }.joined(separator: " ")
 		print("[net] packet \(packet.count) bytes: \(hex)")
+		
+		var index = 0
+		guard let id = VarInt.read(from: packet, at: &index) else { return }
+		
+		switch (protocolState, id) {
+		case (.login, 0x02):
+			sendLoginAcknowledged()
+			protocolState = .configuration
+		case (.configuration, 0x0e):
+			sendKnownPacks()
+		case (.configuration, 0x03):
+			sendFinishConfiguration()
+			protocolState = .play
+		case (.play, 0x2c):
+			sendKeepAlive(packet.dropFirst(index))
+		default:
+			break
+		}
+	}
+	
+	func sendLoginStart(username: String) {
+		var payload = Data()
+		
+		VarInt.write(0, to: &payload)
+		VarInt.writeString(username, to: &payload)
+		
+		let uuid = UUID()
+		withUnsafeBytes(of: uuid.uuid) { payload.append(contentsOf: $0) }
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		connection?.send(content: packet, completion: .contentProcessed { error in
+			if let error {
+				print("[net] send failed: \(error)")
+			} else {
+				print("[net] sent login start")
+			}
+		})
+	}
+	
+	func sendLoginAcknowledged() {
+		var packet = Data()
+		
+		VarInt.write(1, to: &packet)
+		VarInt.write(3, to: &packet)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in
+			print("[net] sent login acknowledged")
+		})
+	}
+	
+	func sendKnownPacks() {
+		var payload = Data()
+		
+		VarInt.write(0x07, to: &payload)
+		VarInt.write(0, to: &payload)
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in
+			print("[net] sent known packs (none)")
+		})
+	}
+	
+	func sendFinishConfiguration() {
+		var packet = Data()
+		
+		VarInt.write(1, to: &packet)
+		VarInt.write(3, to: &packet)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in
+			print("[net] sent finish configuration")
+		})
+	}
+	
+	func sendKeepAlive(_ payload: Data) {
+		var body = Data()
+		
+		VarInt.write(0x1c, to: &body)
+		body.append(payload)
+		
+		var packet = Data()
+		VarInt.write(body.count, to: &packet)
+		packet.append(body)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
 	}
 }

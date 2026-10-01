@@ -16,3 +16,6 @@ DerivedData/
 # same dependency versions.
 .build/
 .swiftpm/xcode/package.xcworkspace/xcuserdata/
+
+# Session handoff notes (local working context, regenerated as needed)
+HANDOFF.md

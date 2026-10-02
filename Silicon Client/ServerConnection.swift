@@ -13,6 +13,7 @@ final class ServerConnection {
 	private var connection: NWConnection?
 	private var incoming = Data()
 	private var protocolState: ProtocolState = .handshaking
+	private let log = PacketLog(fileName: "packets.bin")
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -128,6 +129,8 @@ final class ServerConnection {
 	}
 	
 	private func handle(_ packet: Data) {
+		log?.append(packet)
+		
 		let hex = packet.prefix(24).map { String(format: "%02x", $0) }.joined(separator: " ")
 		print("[net] packet \(packet.count) bytes: \(hex)")
 		

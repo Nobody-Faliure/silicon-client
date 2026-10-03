@@ -29,7 +29,7 @@ final class ServerWorld {
 			y: 0,
 			z: 4,
 			block: BlockState(
-				block: Block(id: "minecraft:stone"),
+				block: Block(id: "minecraft:glass"),
 				properties: ["axis": "z"]
 			)
 		)

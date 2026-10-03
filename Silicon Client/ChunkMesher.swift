@@ -20,13 +20,30 @@ import Foundation
 // them. The functions further down do the walking, merging and triangle
 // building.
 
+struct TextureRef: Decodable {
+	let sprite: String
+	
+	init(from decoder: Decoder) throws {
+		if let plain = try? decoder.singleValueContainer().decode(String.self) {
+			sprite = plain
+			return
+		}
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		sprite = try container.decode(String.self, forKey: .sprite)
+	}
+	
+	enum CodingKeys: String, CodingKey {
+		case sprite
+	}
+}
+
 // One models/block/*.json file.
 // Every field is optional because a file may inherit instead of declaring:
 // anvil.json has only a parent and one texture, and gets its shape from
 // template_anvil.json further up the chain.
 struct MinecraftModel: Decodable {
 	let parent: String?                      // the file this one inherits from
-	let textures: [String: String]?          // nickname -> picture, e.g. "body" -> "block/anvil"
+	let textures: [String: TextureRef]?          // nickname -> picture, e.g. "body" -> "block/anvil"
 	let elements: [MinecraftModelElement]?   // the boxes making up the shape
 }
 
@@ -70,24 +87,24 @@ struct ResolvedModel {
 // The keys are property lists, so anvil.json has four entries keyed
 // "facing=north", "facing=east", "facing=south", "facing=west".
 struct MinecraftBlockState: Decodable {
-	  let variants: [String: VariantChoice]
+	let variants: [String: VariantChoice]
 }
 
 // A variant entry is either one model, or a list Minecraft picks from so
 // large areas of stone don't look tiled. Keep them all; picking comes later.
 struct VariantChoice: Decodable {
-	  let options: [MinecraftBlockStateVariant]
-
-	  init(from decoder: Decoder) throws {
-			  let container = try decoder.singleValueContainer()
-
-			  if let single = try? container.decode(MinecraftBlockStateVariant.self) {
-					  options = [single]
-					  return
-			  }
-
-			  options = try container.decode([MinecraftBlockStateVariant].self)
-	  }
+	let options: [MinecraftBlockStateVariant]
+	
+	init(from decoder: Decoder) throws {
+		let container = try decoder.singleValueContainer()
+		
+		if let single = try? container.decode(MinecraftBlockStateVariant.self) {
+			options = [single]
+			return
+		}
+		
+		options = try container.decode([MinecraftBlockStateVariant].self)
+	}
 }
 
 // What one placement resolves to: which drawing, and how far it is spun.
@@ -103,17 +120,17 @@ struct ChunkMesher {
 	static var variantCache: [URL: MinecraftBlockState] = [:]
 	
 	// Same position always picks the same option, so stone never reshuffles
-	  static func variantIndex(x: Int, y: Int, z: Int, count: Int) -> Int {
-		  if count == 1 { return 0 }
-
-		  var h = UInt64(bitPattern: Int64(x &* 3129871))
-			  ^ UInt64(bitPattern: Int64(z &* 116129781))
-			  ^ UInt64(bitPattern: Int64(y))
-
-		  h = h &* h &* 42317861 &+ h &* 11
-
-		  return Int((h >> 16) % UInt64(count))
-	  }
+	static func variantIndex(x: Int, y: Int, z: Int, count: Int) -> Int {
+		if count == 1 { return 0 }
+		
+		var h = UInt64(bitPattern: Int64(x &* 3129871))
+		^ UInt64(bitPattern: Int64(z &* 116129781))
+		^ UInt64(bitPattern: Int64(y))
+		
+		h = h &* h &* 42317861 &+ h &* 11
+		
+		return Int((h >> 16) % UInt64(count))
+	}
 	
 	// Reads a blockstates/*.json file and picks the entry matching this
 	// block's properties.
@@ -205,26 +222,26 @@ struct ChunkMesher {
 	) -> [MinecraftModel] {
 		var chain = [model]
 		var currentModel = model
-
+		
 		while let parentName = currentModel.parent {
 			let cleanName = parentName
 				.replacingOccurrences(of: "minecraft:", with: "")
 				.replacingOccurrences(of: "block/", with: "")
-
+			
 			let modelURL = modelFolder
 				.appendingPathComponent("block")
 				.appendingPathComponent(cleanName)
 				.appendingPathExtension("json")
-
+			
 			let parentModel: MinecraftModel = loadJSON(
 				from: modelURL,
 				as: MinecraftModel.self
 			)
-
+			
 			chain.append(parentModel)
 			currentModel = parentModel
 		}
-
+		
 		return chain
 	}
 	
@@ -245,7 +262,7 @@ struct ChunkMesher {
 				break
 			}
 		}
-
+		
 		// textures (lookup table): merge every model's, child wins
 		// Pictures: walk backwards, furthest ancestor first, letting each
 		// file overwrite what came before. Because the child is written
@@ -255,11 +272,11 @@ struct ChunkMesher {
 		for model in chain.reversed() {
 			if let t = model.textures {
 				for (key, value) in t {
-					textures[key] = value
+					textures[key] = value.sprite
 				}
 			}
 		}
-
+		
 		return ResolvedModel(textures: textures, elements: elements)
 	}
 	
@@ -293,14 +310,14 @@ struct ChunkMesher {
 		)
 		
 		let resolved = resolveModel(
-				chain: modelChain(
-						startingWith: model,
-						modelFolder: modelFolder
-			 )
+			chain: modelChain(
+				startingWith: model,
+				modelFolder: modelFolder
+			)
 		)
-
-	 modelCache[modelName] = resolved
-	 return resolved
+		
+		modelCache[modelName] = resolved
+		return resolved
 	}
 	
 	// Turns a reference like "#body" into a real texture name
@@ -337,8 +354,8 @@ struct ChunkMesher {
 		}
 		
 		return element.from == [0, 0, 0]
-			&& element.to == [16, 16, 16]
-			&& element.rotation == nil
+		&& element.to == [16, 16, 16]
+		&& element.rotation == nil
 	}
 	
 	// Turns a face name into the direction it points, used to find the
@@ -452,19 +469,19 @@ struct ChunkMesher {
 	}
 	
 	static var fullCubeCache: [BlockState: Bool] = [:]
-
+	
 	static func neighbourIsFullCube(
-			_ blockState: BlockState,
-			blockStateFolder: URL,
-			modelFolder: URL
-	  ) -> Bool {
-		  if let hit = fullCubeCache[blockState] { return hit }
-
-		  let v = variant(for: blockState, x: 0, y: 0, z: 0, blockStateFolder: blockStateFolder)
-		  let value = isFullCube(resolvedModel(modelName: v.model, modelFolder: modelFolder))
-
-		  fullCubeCache[blockState] = value
-		  return value
+		_ blockState: BlockState,
+		blockStateFolder: URL,
+		modelFolder: URL
+	) -> Bool {
+		if let hit = fullCubeCache[blockState] { return hit }
+		
+		let v = variant(for: blockState, x: 0, y: 0, z: 0, blockStateFolder: blockStateFolder)
+		let value = isFullCube(resolvedModel(modelName: v.model, modelFolder: modelFolder))
+		
+		fullCubeCache[blockState] = value
+		return value
 	}
 	
 	// Walks every block in the chunk and produces the triangles for it.
@@ -508,7 +525,7 @@ struct ChunkMesher {
 			guard let neighbourChunk = clientWorld.chunk(atX: neighbourChunkX, z: neighbourChunkZ) else {
 				return false        // not loaded - draw the face
 			}
-
+			
 			let neighbour = neighbourChunk.getBlockState(x: nx & 15, y: ny, z: nz & 15)
 			
 			if neighbour.block == air {
@@ -596,11 +613,11 @@ struct ChunkMesher {
 							let overlaps = resolved.elements.prefix(elementIndex).contains {
 								$0.from == element.from && $0.to == element.to
 							}
-
+							
 							let offset = overlaps
-								? direction(of: faceKey) * 0.0005
-								: SIMD3<Float>(repeating: 0)
-
+							? direction(of: faceKey) * 0.0005
+							: SIMD3<Float>(repeating: 0)
+							
 							let positions = corners(faceKey: faceKey, from: f, to: t).map { $0 + offset }
 							
 							if positions.isEmpty {

@@ -148,6 +148,10 @@ final class ServerConnection {
 			protocolState = .play
 		case (.play, 0x2c):
 			sendKeepAlive(packet.dropFirst(index))
+		case (.play, 0x2d):
+			if let chunk = ChunkDecoder.decode(packet: packet) {
+				print("[net] chunk (\(chunk.chunkX), \(chunk.chunkZ))")
+			}
 		default:
 			break
 		}

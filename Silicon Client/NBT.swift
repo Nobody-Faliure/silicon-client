@@ -132,4 +132,8 @@ struct NBTReader {
 		_ = readString()
 		return .compound(readCompound())
 	}
+	
+	mutating func readVarInt() -> Int {
+		return VarInt.read(from: data, at: &index) ?? 0
+	}
 }

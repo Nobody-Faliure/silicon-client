@@ -36,6 +36,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	static let eyeHeight: Float = 1.62
 	
+	private var positionTimer: Timer?
+	private var hasSpawned = false
+	
 	var lookDirection: SIMD3<Float> {
 		SIMD3<Float>(
 			sin(cameraYaw) * cos(cameraPitch),
@@ -104,14 +107,16 @@ final class Renderer: NSObject, MTKViewDelegate {
 			
 			self.clientWorld.receiveChunk(chunk)
 			
-			for i in 0..<Chunk.sectionCount {
-				self.clientWorld.dirtySections.insert(
-					SectionPosition(
-						chunkX: chunk.chunkX,
-						chunkZ: chunk.chunkZ,
-						sectionIndex: i
+			for (dx, dz) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
+				for i in 0..<Chunk.sectionCount {
+					self.clientWorld.dirtySections.insert(
+						SectionPosition(
+							chunkX: chunk.chunkX + dx,
+							chunkZ: chunk.chunkZ + dz,
+							sectionIndex: i
+						)
 					)
-				)
+				}
 			}
 		}
 		
@@ -126,6 +131,23 @@ final class Renderer: NSObject, MTKViewDelegate {
 			
 			self.cameraYaw = -player.yaw * .pi / 180
 			self.cameraPitch = player.pitch * .pi / 180
+			self.hasSpawned = true
+		}
+		
+		positionTimer = Timer.scheduledTimer(
+			withTimeInterval: 1.0 / 20.0,
+			repeats: true
+		) { [weak self] _ in
+			guard let self, self.hasSpawned else { return }
+			
+			var player = Player()
+			player.x = Double(self.cameraPosition.x)
+			player.y = Double(self.cameraPosition.y - Renderer.eyeHeight)
+			player.z = Double(self.cameraPosition.z)
+			player.yaw = -self.cameraYaw * 180 / .pi
+			player.pitch = self.cameraPitch * 180 / .pi
+			
+			self.serverConnection.sendPlayerPosition(player, onGround: false)
 		}
 		
 		Task {
@@ -166,16 +188,23 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	func rebuildDirtySections() {
 		guard let modelFolder, let blockStateFolder else { return }
-		for position in clientWorld.dirtySections {
+		
+		let batch = Array(clientWorld.dirtySections.prefix(8))
+		
+		for position in batch {
+			clientWorld.dirtySections.remove(position)
+			
 			guard let chunk = clientWorld.chunk(
 				atX: position.chunkX,
 				z: position.chunkZ
 			) else { continue }
+			
 			sectionMeshes.removeAll {
 				$0.chunkX == position.chunkX
 				&& $0.chunkZ == position.chunkZ
 				&& $0.sectionIndex == position.sectionIndex
 			}
+			
 			if let mesh = buildSectionRenderMesh(
 				from: chunk,
 				sectionIndex: position.sectionIndex,
@@ -187,7 +216,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 				sectionMeshes.append(mesh)
 			}
 		}
-		clientWorld.dirtySections.removeAll()
 	}
 	
 	func raycast() -> (hit: SIMD3<Int>, placeAt: SIMD3<Int>)? {

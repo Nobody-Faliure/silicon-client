@@ -148,6 +148,7 @@ final class ServerConnection {
 		case (.configuration, 0x03):
 			sendFinishConfiguration()
 			protocolState = .play
+			sendClientInformation()
 		case (.play, 0x2c):
 			sendKeepAlive(packet.dropFirst(index))
 		case (.play, 0x2d):
@@ -164,6 +165,8 @@ final class ServerConnection {
 					self.onPosition?(result.player)
 				}
 			}
+		case (.play, 0x0b):
+			sendChunkBatchReceived(chunksPerTick: 16)
 		default:
 			break
 		}
@@ -241,11 +244,70 @@ final class ServerConnection {
 		connection?.send(content: packet, completion: .contentProcessed { _ in })
 	}
 	
+	func sendPlayerPosition(_ player: Player, onGround: Bool) {
+		var payload = Data()
+		
+		VarInt.write(0x1f, to: &payload)
+		
+		VarInt.writeDouble(player.x, to: &payload)
+		VarInt.writeDouble(player.y, to: &payload)
+		VarInt.writeDouble(player.z, to: &payload)
+		
+		VarInt.writeFloat(player.yaw, to: &payload)
+		VarInt.writeFloat(player.pitch, to: &payload)
+		
+		payload.append(onGround ? 1 : 0)
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
 	func sendConfirmTeleport(_ teleportID: Int) {
 		var payload = Data()
 		
 		VarInt.write(0x00, to: &payload)
 		VarInt.write(teleportID, to: &payload)
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		print("[net] confirming teleport \(teleportID)")
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
+	func sendClientInformation() {
+		var payload = Data()
+		
+		VarInt.write(0x0e, to: &payload)
+		
+		VarInt.writeString("en_us", to: &payload)
+		payload.append(4)                   		// view distance, in chunks
+		VarInt.write(0, to: &payload)       		// chat mode: 0 = enabled
+		payload.append(1)                   		// chat colours: true
+		payload.append(0x7f)                		// skin parts: all shown
+		VarInt.write(1, to: &payload)				// main hand: 1 = right
+		payload.append(0)                          	// text filtering: false
+		payload.append(1)                          	// server listings: true
+		VarInt.write(0, to: &payload)              	// particle status: 0 = all
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in
+			print("[net] sent client information, view distance 4")
+		})
+	}
+	
+	func sendChunkBatchReceived(chunksPerTick: Float) {
+		var payload = Data()
+		
+		VarInt.write(0x0b, to: &payload)
+		VarInt.writeFloat(chunksPerTick, to: &payload)
 		
 		var packet = Data()
 		VarInt.write(payload.count, to: &packet)

@@ -45,4 +45,14 @@ struct VarInt {
 		
 		return nil
 	}
+	
+	static func writeDouble(_ value: Double, to data: inout Data) {
+		var bits = value.bitPattern.bigEndian
+		withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
+	}
+	
+	static func writeFloat(_ value: Float, to data: inout Data) {
+		var bits = value.bitPattern.bigEndian
+		withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
+	}
 }

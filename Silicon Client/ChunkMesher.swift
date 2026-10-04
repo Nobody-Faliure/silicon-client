@@ -143,7 +143,7 @@ struct ChunkMesher {
 		for blockState: BlockState,
 		x: Int, y: Int, z: Int,
 		blockStateFolder: URL
-	) -> MinecraftBlockStateVariant {
+	) -> MinecraftBlockStateVariant? {
 		let blockName = blockState.block.id
 			.replacingOccurrences(of: "minecraft:", with: "")
 		
@@ -156,11 +156,15 @@ struct ChunkMesher {
 		if let cached = variantCache[blockStateURL] {
 			blockStateJSON = cached
 		} else {
-			blockStateJSON = loadJSON(
+			guard let loaded = loadJSONIfPossible(
 				from: blockStateURL,
 				as: MinecraftBlockState.self
-			)
-			variantCache[blockStateURL] = blockStateJSON
+			) else {
+				return nil
+			}
+			
+			blockStateJSON = loaded
+			variantCache[blockStateURL] = loaded
 		}
 		
 		let properties = blockState.properties
@@ -187,7 +191,7 @@ struct ChunkMesher {
 				return variant.options[variantIndex(x: x, y: y, z: z, count: variant.options.count)]
 			}
 		}
-		fatalError("No matching blockstate variant found for \(blockState.block.id)")
+		return nil
 	}
 	
 	// Reads a file off the disk and turns its text into Swift values.
@@ -207,6 +211,14 @@ struct ChunkMesher {
 			T.self,
 			from: data
 		)
+	}
+	
+	static func loadJSONIfPossible<T: Decodable>(
+		from url: URL,
+		as type: T.Type
+	) -> T? {
+		guard let data = try? Data(contentsOf: url) else { return nil }
+		return try? JSONDecoder().decode(T.self, from: data)
 	}
 	
 	// Walks the inheritance trail and collects every file along it.
@@ -477,7 +489,10 @@ struct ChunkMesher {
 	) -> Bool {
 		if let hit = fullCubeCache[blockState] { return hit }
 		
-		let v = variant(for: blockState, x: 0, y: 0, z: 0, blockStateFolder: blockStateFolder)
+		guard let v = variant(for: blockState, x: 0, y: 0, z: 0, blockStateFolder: blockStateFolder) else {
+			fullCubeCache[blockState] = false
+			return false
+		}
 		let value = isFullCube(resolvedModel(modelName: v.model, modelFolder: modelFolder))
 		
 		fullCubeCache[blockState] = value
@@ -550,7 +565,10 @@ struct ChunkMesher {
 					// Two separate lookups: the spin comes from the blockstate
 					// entry, the shape from the model files. Both read the
 					// disk, and both repeat for every block in the chunk.
-					let v = variant(for: blockState, x: x, y: y, z: z, blockStateFolder: blockStateFolder)
+					guard let v = variant(for: blockState, x: x, y: y, z: z, blockStateFolder: blockStateFolder) else {
+						continue
+					}
+					
 					let xRot = v.x ?? 0
 					let yRot = v.y ?? 0
 					

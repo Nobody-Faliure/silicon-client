@@ -47,8 +47,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	var sectionMeshes: [SectionRenderMesh] = []
 	
-	let server = IntegratedServer()
-	
 	var modelFolder: URL?
 	var blockStateFolder: URL?
 	
@@ -99,8 +97,21 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		super.init()
 		
-		// Start the integrated server and receive its world
-		server.sendWorld(to: clientWorld)
+		serverConnection.onChunk = { [weak self] chunk in
+			guard let self else { return }
+			
+			self.clientWorld.receiveChunk(chunk)
+			
+			for i in 0..<Chunk.sectionCount {
+				self.clientWorld.dirtySections.insert(
+					SectionPosition(
+						chunkX: chunk.chunkX,
+						chunkZ: chunk.chunkZ,
+						sectionIndex: i
+					)
+				)
+			}
+		}
 		
 		Task {
 			do {
@@ -113,17 +124,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 				self.blockStateFolder = blockStateFolder
 				
 				sectionMeshes = buildWorldMeshes(
-							from: clientWorld,
-							device: device,
-							modelFolder: modelFolder,
-							blockStateFolder: blockStateFolder
-						)
+					from: clientWorld,
+					device: device,
+					modelFolder: modelFolder,
+					blockStateFolder: blockStateFolder
+				)
 				
 				let support = URL(fileURLWithPath: NSHomeDirectory())
 					.appendingPathComponent("Library/Application Support/Silicon Client")
-					
+				
 				let serverJar = try await resourceDownloader.downloadServerJar()
-					
+				
 				minecraftServer.start(
 					jar: serverJar,
 					worldFolder: support.appendingPathComponent("Worlds/New World")
@@ -187,8 +198,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	// Called repeatedly by MTKView to draw each frame
 	func draw(in view: MTKView) {
 		if !clientWorld.dirtySections.isEmpty {
-							  rebuildDirtySections()
-					  }
+			rebuildDirtySections()
+		}
 		
 		// Forward direction based on camera yaw
 		let forward = SIMD3<Float>(
@@ -247,12 +258,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		// Sky color
 		renderPassDescriptor.colorAttachments[0].clearColor =
-			MTLClearColor(
-				red: 0.45,
-				green: 0.70,
-				blue: 1.0,
-				alpha: 1.0
-			)
+		MTLClearColor(
+			red: 0.45,
+			green: 0.70,
+			blue: 1.0,
+			alpha: 1.0
+		)
 		
 		// Begin GPU commands
 		let commandBuffer = commandQueue.makeCommandBuffer()!
@@ -285,17 +296,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		cameraPitch = max(
 			-.pi / 2 + 0.01,
-			min(.pi / 2 - 0.01, cameraPitch)
+			 min(.pi / 2 - 0.01, cameraPitch)
 		)
 		
 		input.mouseDeltaY = 0
-
+		
 		// Camera rotation
 		let cosYaw = cos(-cameraYaw)
 		let sinYaw = sin(-cameraYaw)
 		let cosPitch = cos(-cameraPitch)
 		let sinPitch = sin(-cameraPitch)
-
+		
 		viewMatrix.columns.0 = SIMD4<Float>(
 			cosYaw,
 			sinPitch * sinYaw,
@@ -316,25 +327,25 @@ final class Renderer: NSObject, MTKViewDelegate {
 			cosPitch * cosYaw,
 			0
 		)
-
+		
 		// Camera translation
 		let translatedX = -(
 			cameraPosition.x * cosYaw
 			+ cameraPosition.z * sinYaw
 		)
-
+		
 		let translatedY = -(
 			cameraPosition.x * sinPitch * sinYaw
 			+ cameraPosition.y * cosPitch
 			- cameraPosition.z * sinPitch * cosYaw
 		)
-
+		
 		let translatedZ = -(
 			-cameraPosition.x * cosPitch * sinYaw
-			+ cameraPosition.y * sinPitch
-			+ cameraPosition.z * cosPitch * cosYaw
+			 + cameraPosition.y * sinPitch
+			 + cameraPosition.z * cosPitch * cosYaw
 		)
-
+		
 		viewMatrix.columns.3 = SIMD4<Float>(
 			translatedX,
 			translatedY,
@@ -367,7 +378,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 					offset: 0,
 					index: 0
 				)
-
+				
 				renderEncoder.drawPrimitives(
 					type: .triangle,
 					vertexStart: 0,
@@ -434,28 +445,28 @@ final class Renderer: NSObject, MTKViewDelegate {
 			for: .applicationSupportDirectory,
 			in: .userDomainMask
 		)[0]
-		.appendingPathComponent("Silicon Client")
-		.appendingPathComponent("assets/minecraft/textures/block")
-
+			.appendingPathComponent("Silicon Client")
+			.appendingPathComponent("assets/minecraft/textures/block")
+		
 		// Convert "minecraft:block/stone" or "block/stone" into "stone.png"
 		let textureName = name
 			.replacingOccurrences(of: "minecraft:", with: "")
 			.replacingOccurrences(of: "block/", with: "")
-
+		
 		let textureURL = texturesFolder
 			.appendingPathComponent(textureName)
 			.appendingPathExtension("png")
-
+		
 		let loaded = loadMinecraftTexture(from: textureURL)
 		textureCache[name] = loaded
 		return loaded
 	}
-
+	
 	// Decodes a Minecraft PNG into raw pixels and creates a Metal texture
 	func loadMinecraftTexture(from textureURL: URL) -> MTLTexture {
 		do {
 			let data = try Data(contentsOf: textureURL)
-
+			
 			// Create an ImageIO source from the PNG data
 			guard let source = CGImageSourceCreateWithData(
 				data as CFData,
@@ -463,30 +474,30 @@ final class Renderer: NSObject, MTKViewDelegate {
 			) else {
 				fatalError("Could not create image source: \(textureURL.path)")
 			}
-
+			
 			let cgImage = CGImageSourceCreateImageAtIndex(
 				source,
 				0,
 				nil
 			)!
-
+			
 			let width = cgImage.width
 			let height = cgImage.height
-
+			
 			// Allocate enough memory for RGBA pixels
 			let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 			let bytesPerRow = width * 4
 			let byteCount = bytesPerRow * height
-
+			
 			let pixelData = UnsafeMutableRawPointer.allocate(
 				byteCount: byteCount,
 				alignment: 64
 			)
-
+			
 			defer {
 				pixelData.deallocate()
 			}
-
+			
 			// Decode the image into a predictable 4-byte-per-pixel format
 			let context = CGContext(
 				data: pixelData,
@@ -497,7 +508,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 				space: colorSpace,
 				bitmapInfo:  CGImageAlphaInfo.premultipliedLast.rawValue
 			)!
-
+			
 			context.draw(
 				cgImage,
 				in: CGRect(
@@ -507,7 +518,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 					height: height
 				)
 			)
-
+			
 			// Create the GPU texture that will hold those pixels
 			let descriptor = MTLTextureDescriptor.texture2DDescriptor(
 				pixelFormat: .rgba8Unorm_srgb,
@@ -515,11 +526,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 				height: height,
 				mipmapped: false
 			)
-
+			
 			let texture = device.makeTexture(
 				descriptor: descriptor
 			)!
-
+			
 			// Copy the decoded pixels into Metal's texture memory
 			texture.replace(
 				region: MTLRegionMake2D(
@@ -532,7 +543,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 				withBytes: pixelData,
 				bytesPerRow: bytesPerRow
 			)
-
+			
 			return texture
 		} catch {
 			fatalError(

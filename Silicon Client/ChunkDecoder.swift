@@ -37,10 +37,6 @@ enum ChunkDecoder {
 				
 				guard let state = BlockRegistry.statesByID[stateID] else { continue }
 				
-				if let state = BlockRegistry.statesByID[blocks.value(at: 0)] {
-					print("  section \(sectionIndex) y=0: \(state.block.id)")
-				}
-				
 				chunk.sections[sectionIndex].blocks[i] = state
 			}
 		}

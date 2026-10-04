@@ -14,6 +14,7 @@ final class ServerConnection {
 	private var incoming = Data()
 	private var protocolState: ProtocolState = .handshaking
 	private let log = PacketLog(fileName: "packets.bin")
+	var onChunk: ((Chunk) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -150,7 +151,9 @@ final class ServerConnection {
 			sendKeepAlive(packet.dropFirst(index))
 		case (.play, 0x2d):
 			if let chunk = ChunkDecoder.decode(packet: packet) {
-				print("[net] chunk (\(chunk.chunkX), \(chunk.chunkZ))")
+				DispatchQueue.main.async {
+					self.onChunk?(chunk)
+				}
 			}
 		default:
 			break

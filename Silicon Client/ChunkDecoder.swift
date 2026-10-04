@@ -2,6 +2,8 @@ import Foundation
 
 enum ChunkDecoder {
 	static func decode(packet: Data) -> Chunk? {
+		BlockRegistry.load(version: "26.2")
+		
 		var reader = NBTReader(data: packet)
 		
 		guard reader.readVarInt() == 0x2d else { return nil }
@@ -33,10 +35,13 @@ enum ChunkDecoder {
 				
 				guard stateID != 0 else { continue }
 				
-				chunk.sections[sectionIndex].blocks[i] = BlockState(
-					block: Block(id: "minecraft:stone"),
-					properties: [:]
-				)
+				guard let state = BlockRegistry.statesByID[stateID] else { continue }
+				
+				if let state = BlockRegistry.statesByID[blocks.value(at: 0)] {
+					print("  section \(sectionIndex) y=0: \(state.block.id)")
+				}
+				
+				chunk.sections[sectionIndex].blocks[i] = state
 			}
 		}
 		

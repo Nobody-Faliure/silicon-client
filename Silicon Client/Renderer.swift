@@ -30,7 +30,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var viewMatrix: simd_float4x4 = matrix_identity_float4x4
 	
 	// Camera state
-	var cameraPosition = SIMD3<Float>(0, 0, 0)
+	var cameraPosition = SIMD3<Float>(-6.5, 112, 8.5)
 	var cameraYaw: Float = 0
 	var cameraPitch: Float = 0
 	
@@ -221,7 +221,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			0
 		)
 		
-		let moveSpeed: Float = 0.04
+		let moveSpeed: Float = 0.2
 		
 		if input.wPressed {
 			cameraPosition += forward * moveSpeed

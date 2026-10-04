@@ -15,6 +15,7 @@ final class ServerConnection {
 	private var protocolState: ProtocolState = .handshaking
 	private let log = PacketLog(fileName: "packets.bin")
 	var onChunk: ((Chunk) -> Void)?
+	var onPosition: ((Player) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -155,6 +156,14 @@ final class ServerConnection {
 					self.onChunk?(chunk)
 				}
 			}
+		case (.play, 0x48):
+			if let result = PositionDecoder.decode(packet: packet) {
+				sendConfirmTeleport(result.teleportID)
+				
+				DispatchQueue.main.async {
+					self.onPosition?(result.player)
+				}
+			}
 		default:
 			break
 		}
@@ -228,6 +237,19 @@ final class ServerConnection {
 		var packet = Data()
 		VarInt.write(body.count, to: &packet)
 		packet.append(body)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
+	func sendConfirmTeleport(_ teleportID: Int) {
+		var payload = Data()
+		
+		VarInt.write(0x00, to: &payload)
+		VarInt.write(teleportID, to: &payload)
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
 		
 		connection?.send(content: packet, completion: .contentProcessed { _ in })
 	}

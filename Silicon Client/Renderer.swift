@@ -30,9 +30,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var viewMatrix: simd_float4x4 = matrix_identity_float4x4
 	
 	// Camera state
-	var cameraPosition = SIMD3<Float>(-6.5, 112, 8.5)
+	var cameraPosition = SIMD3<Float>(0, 200, 0)
 	var cameraYaw: Float = 0
 	var cameraPitch: Float = 0
+	
+	static let eyeHeight: Float = 1.62
 	
 	var lookDirection: SIMD3<Float> {
 		SIMD3<Float>(
@@ -111,6 +113,19 @@ final class Renderer: NSObject, MTKViewDelegate {
 					)
 				)
 			}
+		}
+		
+		serverConnection.onPosition = { [weak self] player in
+			guard let self else { return }
+			
+			self.cameraPosition = SIMD3<Float>(
+				Float(player.x),
+				Float(player.y) + Renderer.eyeHeight,
+				Float(player.z)
+			)
+			
+			self.cameraYaw = -player.yaw * .pi / 180
+			self.cameraPitch = player.pitch * .pi / 180
 		}
 		
 		Task {

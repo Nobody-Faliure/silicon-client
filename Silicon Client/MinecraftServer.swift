@@ -3,6 +3,15 @@ import Foundation
 final class MinecraftServer {
 	private var process: Process?
 	private var worldFolder: URL?
+	private let requiredProperties = [
+		"server-ip": "127.0.0.1",            // never reachable from outside
+		"online-mode": "false",              // local singleplayer
+		"max-players": "1",
+		"network-compression-threshold": "-1",   // no zlib on the packet path
+		"pause-when-empty-seconds": "0",     // never pause the world
+		"view-distance": "8",
+		"simulation-distance": "8",
+	]
 	
 	deinit {
 		stop()
@@ -63,6 +72,7 @@ final class MinecraftServer {
 	func start(jar: URL, worldFolder: URL, onReady: @escaping () -> Void) {
 		self.worldFolder = worldFolder
 		killOrphan()
+		applyRequiredProperties(in: worldFolder)
 		let process = Process()
 		process.executableURL = URL(fileURLWithPath: "/usr/bin/java")
 		process.arguments = ["-Xmx2G", "-jar", jar.path, "nogui"]
@@ -94,6 +104,34 @@ final class MinecraftServer {
 				encoding: .utf8
 			)
 		}
+	}
+	
+	private func applyRequiredProperties(in worldFolder: URL) {
+		let file = worldFolder.appendingPathComponent("server.properties")
+		
+		var settings: [String: String] = [:]
+		
+		if let text = try? String(contentsOf: file, encoding: .utf8) {
+			for line in text.split(separator: "\n") {
+				guard !line.hasPrefix("#"),
+					  let equals = line.firstIndex(of: "=") else { continue }
+				
+				let key = String(line[line.startIndex ..< equals])
+				let value = String(line[line.index(after: equals)...])
+				settings[key] = value
+			}
+		}
+		
+		for (key, value) in requiredProperties {
+			settings[key] = value
+		}
+		
+		let text = settings
+			.sorted { $0.key < $1.key }
+			.map { "\($0.key)=\($0.value)" }
+			.joined(separator: "\n")
+		
+		try? text.write(to: file, atomically: true, encoding: .utf8)
 	}
 	
 	func stop() {

@@ -189,7 +189,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	func rebuildDirtySections() {
 		guard let modelFolder, let blockStateFolder else { return }
 		
-		let batch = Array(clientWorld.dirtySections.prefix(8))
+		let batch = Array(clientWorld.dirtySections.prefix(100))
 		
 		for position in batch {
 			clientWorld.dirtySections.remove(position)

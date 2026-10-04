@@ -117,7 +117,7 @@ struct MinecraftBlockStateVariant: Decodable {
 struct ChunkMesher {
 	// It needs a type and a starting value, e.g.
 	static var modelCache: [String: ResolvedModel] = [:]
-	static var variantCache: [URL: MinecraftBlockState] = [:]
+	static var variantCache: [BlockState: MinecraftBlockState] = [:]
 	
 	// Same position always picks the same option, so stone never reshuffles
 	static func variantIndex(x: Int, y: Int, z: Int, count: Int) -> Int {
@@ -144,18 +144,18 @@ struct ChunkMesher {
 		x: Int, y: Int, z: Int,
 		blockStateFolder: URL
 	) -> MinecraftBlockStateVariant? {
-		let blockName = blockState.block.id
-			.replacingOccurrences(of: "minecraft:", with: "")
-		
-		let blockStateURL = blockStateFolder
-			.appendingPathComponent(blockName)
-			.appendingPathExtension("json")
-		
 		let blockStateJSON: MinecraftBlockState
 		
-		if let cached = variantCache[blockStateURL] {
+		if let cached = variantCache[blockState] {
 			blockStateJSON = cached
 		} else {
+			let blockName = blockState.block.id
+				.replacingOccurrences(of: "minecraft:", with: "")
+			
+			let blockStateURL = blockStateFolder
+				.appendingPathComponent(blockName)
+				.appendingPathExtension("json")
+			
 			guard let loaded = loadJSONIfPossible(
 				from: blockStateURL,
 				as: MinecraftBlockState.self
@@ -164,7 +164,7 @@ struct ChunkMesher {
 			}
 			
 			blockStateJSON = loaded
-			variantCache[blockStateURL] = loaded
+			variantCache[blockState] = loaded
 		}
 		
 		let properties = blockState.properties

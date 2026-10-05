@@ -16,6 +16,7 @@ final class ServerConnection {
 	private let log = PacketLog(fileName: "packets.bin")
 	var onChunk: ((Chunk) -> Void)?
 	var onPosition: ((Player) -> Void)?
+	var onForgetChunk: ((Int, Int) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -167,6 +168,16 @@ final class ServerConnection {
 			}
 		case (.play, 0x0b):
 			sendChunkBatchReceived(chunksPerTick: 16)
+		case (.play, 0x25):
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()
+			
+			let chunkZ = reader.readInteger(byteCount: 4)
+			let chunkX = reader.readInteger(byteCount: 4)
+			
+			DispatchQueue.main.async {
+				self.onForgetChunk?(chunkX, chunkZ)
+			}
 		default:
 			break
 		}

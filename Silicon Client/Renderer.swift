@@ -139,6 +139,20 @@ final class Renderer: NSObject, MTKViewDelegate {
 			self.hasSpawned = true
 		}
 		
+		serverConnection.onForgetChunk = { [weak self] chunkX, chunkZ in
+			guard let self else { return }
+			
+			self.clientWorld.unloadChunk(chunkX: chunkX, chunkZ: chunkZ)
+			
+			self.sectionMeshes.removeAll {
+				$0.chunkX == chunkX && $0.chunkZ == chunkZ
+			}
+			
+			self.clientWorld.dirtySections = self.clientWorld.dirtySections.filter {
+				$0.chunkX != chunkX || $0.chunkZ != chunkZ
+			}
+		}
+		
 		positionTimer = Timer.scheduledTimer(
 			withTimeInterval: 1.0 / 20.0,
 			repeats: true

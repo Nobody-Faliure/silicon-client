@@ -39,6 +39,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private var positionTimer: Timer?
 	private var hasSpawned = false
 	
+	private let meshQueue = DispatchQueue(
+		label: "dev.jasper.Silicon-Client.mesh",
+		qos: .userInitiated
+	)
+	
 	var lookDirection: SIMD3<Float> {
 		SIMD3<Float>(
 			sin(cameraYaw) * cos(cameraPitch),
@@ -189,7 +194,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	func rebuildDirtySections() {
 		guard let modelFolder, let blockStateFolder else { return }
 		
-		let batch = Array(clientWorld.dirtySections.prefix(100))
+		let batch = Array(clientWorld.dirtySections.prefix(10000))
 		
 		for position in batch {
 			clientWorld.dirtySections.remove(position)
@@ -197,25 +202,52 @@ final class Renderer: NSObject, MTKViewDelegate {
 			guard let chunk = clientWorld.chunk(
 				atX: position.chunkX,
 				z: position.chunkZ
-			) else { continue }
+			), let world = snapshot(around: position) else { continue }
 			
-			sectionMeshes.removeAll {
-				$0.chunkX == position.chunkX
-				&& $0.chunkZ == position.chunkZ
-				&& $0.sectionIndex == position.sectionIndex
-			}
-			
-			if let mesh = buildSectionRenderMesh(
-				from: chunk,
-				sectionIndex: position.sectionIndex,
-				device: device,
-				modelFolder: modelFolder,
-				blockStateFolder: blockStateFolder,
-				clientWorld: clientWorld
-			) {
-				sectionMeshes.append(mesh)
+			meshQueue.async {
+				let mesh = buildSectionRenderMesh(
+					from: chunk,
+					sectionIndex: position.sectionIndex,
+					device: self.device,
+					modelFolder: modelFolder,
+					blockStateFolder: blockStateFolder,
+					clientWorld: world
+				)
+				
+				DispatchQueue.main.async {
+					self.sectionMeshes.removeAll {
+						$0.chunkX == position.chunkX
+						&& $0.chunkZ == position.chunkZ
+						&& $0.sectionIndex == position.sectionIndex
+					}
+					
+					if let mesh {
+						self.sectionMeshes.append(mesh)
+					}
+				}
 			}
 		}
+	}
+	
+	private func snapshot(around position: SectionPosition) -> ClientWorld? {
+		guard let chunk = clientWorld.chunk(
+			atX: position.chunkX,
+			z: position.chunkZ
+		) else { return nil }
+		
+		let copy = ClientWorld()
+		copy.receiveChunk(chunk)
+		
+		for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+			if let neighbour = clientWorld.chunk(
+				atX: position.chunkX + dx,
+				z: position.chunkZ + dz
+			) {
+				copy.receiveChunk(neighbour)
+			}
+		}
+		
+		return copy
 	}
 	
 	func raycast() -> (hit: SIMD3<Int>, placeAt: SIMD3<Int>)? {
@@ -264,7 +296,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			0
 		)
 		
-		let moveSpeed: Float = 0.2
+		let moveSpeed: Float = 1
 		
 		if input.wPressed {
 			cameraPosition += forward * moveSpeed

@@ -285,7 +285,7 @@ final class ServerConnection {
 		VarInt.write(0x0e, to: &payload)
 		
 		VarInt.writeString("en_us", to: &payload)
-		payload.append(4)                   		// view distance, in chunks
+		payload.append(16)                   		// view distance, in chunks
 		VarInt.write(0, to: &payload)       		// chat mode: 0 = enabled
 		payload.append(1)                   		// chat colours: true
 		payload.append(0x7f)                		// skin parts: all shown
@@ -299,7 +299,7 @@ final class ServerConnection {
 		packet.append(payload)
 		
 		connection?.send(content: packet, completion: .contentProcessed { _ in
-			print("[net] sent client information, view distance 4")
+			print("[net] sent client information, view distance 16")
 		})
 	}
 	

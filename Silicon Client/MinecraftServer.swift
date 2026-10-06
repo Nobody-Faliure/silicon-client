@@ -9,7 +9,7 @@ final class MinecraftServer {
 		"max-players": "1",
 		"network-compression-threshold": "-1",   // no zlib on the packet path
 		"pause-when-empty-seconds": "0",     // never pause the world
-		"view-distance": "8",
+		"view-distance": "32",
 		"simulation-distance": "8",
 		"gamemode": "spectator",
 		"allow-flight": "true",

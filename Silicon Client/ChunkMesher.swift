@@ -360,7 +360,7 @@ struct ChunkMesher {
 	// behind it. An anvil cannot, which is why the ground under one still
 	// draws its top face instead of leaving a hole.
 	static func isFullCube(_ resolved: ResolvedModel) -> Bool {
-		guard resolved.elements.count == 1,
+		guard resolved.elements.count >= 1,
 			  let element = resolved.elements.first else {
 			return false
 		}

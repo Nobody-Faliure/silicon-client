@@ -538,7 +538,7 @@ struct ChunkMesher {
 			}
 			
 			guard let neighbourChunk = clientWorld.chunk(atX: neighbourChunkX, z: neighbourChunkZ) else {
-				return false        // not loaded - draw the face
+				return true        // not loaded - don't the face
 			}
 			
 			let neighbour = neighbourChunk.getBlockState(x: nx & 15, y: ny, z: nz & 15)

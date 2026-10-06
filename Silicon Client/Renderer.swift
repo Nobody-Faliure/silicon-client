@@ -112,16 +112,14 @@ final class Renderer: NSObject, MTKViewDelegate {
 			
 			self.clientWorld.receiveChunk(chunk)
 			
-			for (dx, dz) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
-				for i in 0..<Chunk.sectionCount {
-					self.clientWorld.dirtySections.insert(
-						SectionPosition(
-							chunkX: chunk.chunkX + dx,
-							chunkZ: chunk.chunkZ + dz,
-							sectionIndex: i
-						)
+			for i in 0..<Chunk.sectionCount {
+				self.clientWorld.dirtySections.insert(
+					SectionPosition(
+						chunkX: chunk.chunkX,
+						chunkZ: chunk.chunkZ,
+						sectionIndex: i
 					)
-				}
+				)
 			}
 		}
 		
@@ -211,12 +209,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 		let batch = Array(clientWorld.dirtySections.prefix(10000))
 		
 		for position in batch {
-			clientWorld.dirtySections.remove(position)
 			
 			guard let chunk = clientWorld.chunk(
 				atX: position.chunkX,
 				z: position.chunkZ
-			), let world = snapshot(around: position) else { continue }
+			), let world = snapshot(around: position),
+				  world.chunks.count == 5 else { continue }
+			clientWorld.dirtySections.remove(position)
 			
 			meshQueue.async {
 				let mesh = buildSectionRenderMesh(

@@ -87,12 +87,12 @@ struct ResolvedModel {
 // The keys are property lists, so anvil.json has four entries keyed
 // "facing=north", "facing=east", "facing=south", "facing=west".
 struct MinecraftBlockState: Decodable {
-	let variants: [String: VariantChoice]
+	let variants: [String: VariantOptions]
 }
 
 // A variant entry is either one model, or a list Minecraft picks from so
 // large areas of stone don't look tiled. Keep them all; picking comes later.
-struct VariantChoice: Decodable {
+struct VariantOptions: Decodable {
 	let options: [MinecraftBlockStateVariant]
 	
 	init(from decoder: Decoder) throws {
@@ -117,7 +117,7 @@ struct MinecraftBlockStateVariant: Decodable {
 struct ChunkMesher {
 	// It needs a type and a starting value, e.g.
 	static var modelCache: [String: ResolvedModel] = [:]
-	static var variantCache: [BlockState: MinecraftBlockState] = [:]
+	static var variantCache: [BlockState: VariantOptions] = [:]
 	
 	// Same position always picks the same option, so stone never reshuffles
 	static func variantIndex(x: Int, y: Int, z: Int, count: Int) -> Int {
@@ -147,7 +147,7 @@ struct ChunkMesher {
 		let blockStateJSON: MinecraftBlockState
 		
 		if let cached = variantCache[blockState] {
-			blockStateJSON = cached
+			return cached.options[variantIndex(x: x, y: y, z: z, count: cached.options.count)]
 		} else {
 			let blockName = blockState.block.id
 				.replacingOccurrences(of: "minecraft:", with: "")
@@ -164,7 +164,6 @@ struct ChunkMesher {
 			}
 			
 			blockStateJSON = loaded
-			variantCache[blockState] = loaded
 		}
 		
 		let properties = blockState.properties
@@ -188,6 +187,7 @@ struct ChunkMesher {
 				}
 			}
 			if matches {
+				variantCache[blockState] = variant
 				return variant.options[variantIndex(x: x, y: y, z: z, count: variant.options.count)]
 			}
 		}

@@ -357,7 +357,15 @@ struct ChunkMesher {
 		
 		return reference
 	}
-	
+	static func shade(of faceKey: String) -> Float {
+		switch faceKey {
+		case "up":             return 1.0
+		case "north", "south": return 0.8
+		case "east",  "west":  return 0.6
+		case "down":           return 0.5
+		default:               return 1.0
+		}
+	}
 	static func isSolid(texture name: String) -> Bool {
 		let bare = name
 			.replacingOccurrences(of: "minecraft:", with: "")
@@ -683,12 +691,14 @@ struct ChunkMesher {
 							
 							// Two triangles covering the quad, wound so the
 							// outside face survives setCullMode(.back)
+							let faceShade = shade(of: faceKey)
 							for i in [0, 3, 2, 2, 1, 0] {
 								verticesByTexture[texture, default: []].append(
 									Vertex(
 										position: rotate(xRot, yRot, around: center, positions[i]),
 										uv: uvs[i],
-										tintIndex: Int32(face.tintindex ?? -1)
+										tintIndex: Int32(face.tintindex ?? -1),
+										shade: faceShade
 									)
 								)
 							}

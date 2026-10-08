@@ -5,12 +5,14 @@ struct Vertex {
 	float3 position;
 	float2 uv;
 	int tintIndex;
+	float shade;
 };
 
 struct VertexOut {
 	float4 position [[position]];
 	float2 uv;
 	int tintIndex;
+	float shade;
 };
 
 vertex VertexOut vertexShader(
@@ -24,6 +26,7 @@ vertex VertexOut vertexShader(
 	out.position = projectionMatrix * viewMatrix * float4(vertices[vertexID].position, 1.0);
 	out.uv = vertices[vertexID].uv;
 	out.tintIndex = vertices[vertexID].tintIndex;
+	out.shade = vertices[vertexID].shade;
 	return out;
 }
 
@@ -54,6 +57,7 @@ fragment float4 fragmentShader(
 	}
 	
 	color.rgb *= tintColour(in.tintIndex);
+	color.rgb *= in.shade;
 
 	return color;
 }

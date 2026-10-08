@@ -6,6 +6,7 @@ struct Vertex {
 	let position: SIMD3<Float>
 	let uv: SIMD2<Float>
 	let tintIndex: Int32
+	let shade: Float
 }
 
 // MTKViewDelegate lets Renderer receive draw calls from MTKView

@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 
 // Turns the blocks in a chunk into triangles the GPU can draw.
 //
@@ -118,6 +119,8 @@ struct ChunkMesher {
 	// It needs a type and a starting value, e.g.
 	static var modelCache: [String: ResolvedModel] = [:]
 	static var variantCache: [BlockState: VariantOptions] = [:]
+	static var textureIsSolid: [String: Bool] = [:]
+	static var textureFolder: URL?
 	
 	// Same position always picks the same option, so stone never reshuffles
 	static func variantIndex(x: Int, y: Int, z: Int, count: Int) -> Int {
@@ -355,19 +358,51 @@ struct ChunkMesher {
 		return reference
 	}
 	
+	static func isSolid(texture name: String) -> Bool {
+		let bare = name
+			.replacingOccurrences(of: "minecraft:", with: "")
+			.replacingOccurrences(of: "block/", with: "")
+
+		if let known = textureIsSolid[bare] { return known }
+
+		guard let folder = textureFolder else { return false }
+
+		let url = folder.appendingPathComponent(bare).appendingPathExtension("png")
+
+		var solid = false
+		if let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+		   let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] {
+			solid = (properties[kCGImagePropertyHasAlpha] as? Bool) != true
+		}
+
+		textureIsSolid[bare] = solid
+		return solid
+	}
+	
 	// True when the model is a single full-size box, so it hides whatever is behind it
 	// Only a single box filling the block edge to edge can hide the face
 	// behind it. An anvil cannot, which is why the ground under one still
 	// draws its top face instead of leaving a hole.
-	static func isFullCube(_ resolved: ResolvedModel) -> Bool {
-		guard resolved.elements.count >= 1,
-			  let element = resolved.elements.first else {
-			return false
+	static func hidesNeighbours(_ resolved: ResolvedModel) -> Bool {
+		for element in resolved.elements {
+			guard element.from == [0, 0, 0],
+				  element.to == [16, 16, 16],
+				  element.rotation == nil,
+				  let faces = element.faces,
+				  faces.count == 6 else {
+				continue
+			}
+
+			let allSolid = faces.values.allSatisfy {
+				isSolid(texture: resolveTexture($0.texture, in: resolved))
+			}
+
+			if allSolid {
+				return true
+			}
 		}
-		
-		return element.from == [0, 0, 0]
-		&& element.to == [16, 16, 16]
-		&& element.rotation == nil
+
+		return false
 	}
 	
 	// Turns a face name into the direction it points, used to find the
@@ -480,22 +515,22 @@ struct ChunkMesher {
 		return (0..<4).map { base[($0 + offset) % 4] }
 	}
 	
-	static var fullCubeCache: [BlockState: Bool] = [:]
+	static var hidesCache: [BlockState: Bool] = [:]
 	
-	static func neighbourIsFullCube(
+	static func neighbourHides(
 		_ blockState: BlockState,
 		blockStateFolder: URL,
 		modelFolder: URL
 	) -> Bool {
-		if let hit = fullCubeCache[blockState] { return hit }
+		if let hit = hidesCache[blockState] { return hit }
 		
 		guard let v = variant(for: blockState, x: 0, y: 0, z: 0, blockStateFolder: blockStateFolder) else {
-			fullCubeCache[blockState] = false
+			hidesCache[blockState] = false
 			return false
 		}
-		let value = isFullCube(resolvedModel(modelName: v.model, modelFolder: modelFolder))
+		let value = hidesNeighbours(resolvedModel(modelName: v.model, modelFolder: modelFolder))
 		
-		fullCubeCache[blockState] = value
+		hidesCache[blockState] = value
 		return value
 	}
 	
@@ -547,7 +582,7 @@ struct ChunkMesher {
 				return false
 			}
 			
-			return neighbourIsFullCube(neighbour, blockStateFolder: blockStateFolder, modelFolder: modelFolder)
+			return neighbourHides(neighbour, blockStateFolder: blockStateFolder, modelFolder: modelFolder)
 		}
 		
 		// Visit every position in the section, one block at a time.

@@ -163,7 +163,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		Task {
 			do {
-				_ = try await resourceDownloader.downloadAllBlockAndItemTextures()
+				let textureFolder = try await resourceDownloader.downloadAllBlockAndItemTextures()
+				ChunkMesher.textureFolder = textureFolder.appendingPathComponent("block")
 				
 				let modelFolder = try await resourceDownloader.downloadAllModelJSONs()
 				self.modelFolder = modelFolder

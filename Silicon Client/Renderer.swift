@@ -222,6 +222,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 				)
 				
 				DispatchQueue.main.async {
+					guard self.clientWorld.chunk(atX: position.chunkX, z: position.chunkZ) != nil else { return }
 					self.sectionMeshes.removeAll {
 						$0.chunkX == position.chunkX
 						&& $0.chunkZ == position.chunkZ

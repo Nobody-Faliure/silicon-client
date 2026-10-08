@@ -11,4 +11,6 @@ final class Input {
 	
 	var spacePressed = false
 	var shiftPressed = false
+	
+	var scrollDelta: Float = 0
 }

@@ -34,6 +34,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var cameraYaw: Float = 0
 	var cameraPitch: Float = 0
 	
+	private var lastFrameTime: CFTimeInterval?
+	
+	private var player = Player()
+	
 	static let eyeHeight: Float = 1.62
 	
 	private var positionTimer: Timer?
@@ -104,7 +108,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		self.input = input
 		
 		let resourceDownloader = ResourceDownloader()
-		
+
 		super.init()
 		
 		serverConnection.onChunk = { [weak self] chunk in
@@ -123,17 +127,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 			}
 		}
 		
-		serverConnection.onPosition = { [weak self] player in
+		serverConnection.onPosition = { [weak self] new_player in
 			guard let self else { return }
 			
-			self.cameraPosition = SIMD3<Float>(
-				Float(player.x),
-				Float(player.y) + Renderer.eyeHeight,
-				Float(player.z)
-			)
-			
-			self.cameraYaw = -player.yaw * .pi / 180
-			self.cameraPitch = player.pitch * .pi / 180
+			player = new_player
 			self.hasSpawned = true
 		}
 		
@@ -157,12 +154,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 		) { [weak self] _ in
 			guard let self, self.hasSpawned else { return }
 			
-			var player = Player()
-			player.x = Double(self.cameraPosition.x)
-			player.y = Double(self.cameraPosition.y - Renderer.eyeHeight)
-			player.z = Double(self.cameraPosition.z)
-			player.yaw = -self.cameraYaw * 180 / .pi
-			player.pitch = self.cameraPitch * 180 / .pi
+			var player = self.player
+			player.yaw = -player.yaw * 180 / .pi
+			player.pitch = player.pitch * 180 / .pi
 			
 			self.serverConnection.sendPlayerPosition(player, onGround: false)
 		}
@@ -289,51 +283,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 			rebuildDirtySections()
 		}
 		
-		// Forward direction based on camera yaw
-		let forward = SIMD3<Float>(
-			sin(cameraYaw),
-			0,
-			cos(cameraYaw)
+		let now = CACurrentMediaTime()
+		let deltaTime = min(now - (lastFrameTime ?? now), 0.1)
+		lastFrameTime = now
+		
+		player.spectatorFly(input: input, deltaTime: deltaTime)
+		
+		cameraPosition = SIMD3<Float>(
+			Float(player.x),
+			Float(player.y) + Renderer.eyeHeight,
+			Float(player.z)
 		)
-		
-		// Right direction based on camera yaw
-		let right = SIMD3<Float>(
-			cos(cameraYaw),
-			0,
-			-sin(cameraYaw)
-		)
-		
-		let up = SIMD3<Float>(
-			0,
-			1,
-			0
-		)
-		
-		let moveSpeed: Float = 1
-		
-		if input.wPressed {
-			cameraPosition += forward * moveSpeed
-		}
-		
-		if input.sPressed {
-			cameraPosition -= forward * moveSpeed
-		}
-		
-		if input.aPressed {
-			cameraPosition -= right * moveSpeed
-		}
-		
-		if input.dPressed {
-			cameraPosition += right * moveSpeed
-		}
-		
-		if input.spacePressed {
-			cameraPosition += up * moveSpeed
-		}
-		
-		if input.shiftPressed {
-			cameraPosition -= up * moveSpeed
-		}
 		
 		guard let renderPassDescriptor =
 				view.currentRenderPassDescriptor else {
@@ -375,19 +335,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 			index: 1
 		)
 		
-		// Mouse yaw
-		cameraYaw += input.mouseDeltaX * 0.002
-		input.mouseDeltaX = 0
+		player.updateLookDirection(input: input)
 		
-		// Mouse pitch
-		cameraPitch += input.mouseDeltaY * 0.002
-		
-		cameraPitch = max(
-			-.pi / 2 + 0.01,
-			 min(.pi / 2 - 0.01, cameraPitch)
-		)
-		
-		input.mouseDeltaY = 0
+		cameraYaw = player.yaw
+		cameraPitch = player.pitch
 		
 		// Camera rotation
 		let cosYaw = cos(-cameraYaw)

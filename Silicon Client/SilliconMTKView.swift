@@ -50,4 +50,8 @@ final class SiliconMTKView: MTKView {
 		input.mouseDeltaX += Float(event.deltaX)
 		input.mouseDeltaY += Float(event.deltaY)
 	}
+	
+	override func scrollWheel(with event: NSEvent) {
+		input.scrollDelta += Float(event.scrollingDeltaY)
+	}
 }

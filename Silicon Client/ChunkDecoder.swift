@@ -19,7 +19,7 @@ enum ChunkDecoder {
 			reader.index += longCount * 8            // skip them
 		}
 		
-		_ = reader.readVarInt()                  // blob size, 20192 — we don't need it
+		_ = reader.readVarInt()                 // blob size, 20192 — we don't need it
 		
 		var chunk = Chunk(chunkX: chunkX, chunkZ: chunkZ)
 		

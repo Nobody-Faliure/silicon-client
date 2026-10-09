@@ -13,4 +13,6 @@ final class Input {
 	var shiftPressed = false
 	
 	var scrollDelta: Float = 0
+	
+	var flyStep: Double = 1
 }

@@ -47,7 +47,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	private var hasSentPlayerLoaded = false
 	private var lastPositionSend: CFTimeInterval = 0
-	private var lastPositionReceived: CFTimeInterval = 0
 	
 	private let meshQueue = DispatchQueue(
 		label: "dev.jasper.Silicon-Client.mesh",
@@ -136,7 +135,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		serverConnection.onPosition = { [weak self] new_player in
 			guard let self else { return }
-			self.lastPositionReceived = CACurrentMediaTime()
 			
 			player = new_player
 			self.hasSpawned = true

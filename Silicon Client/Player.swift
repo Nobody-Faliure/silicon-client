@@ -10,15 +10,13 @@ struct Player {
 	
 	static let spectatorFlySpeed: Double = 10.9
 	
-	var flyStep: Double = 1
-	
 	mutating func spectatorFly(input: Input, deltaTime: Double) {
 		if input.scrollDelta != 0 {
-			flyStep = min(4, max(1, flyStep + Double(input.scrollDelta) * 0.1))
+			input.flyStep = min(4, max(1, input.flyStep + Double(input.scrollDelta) * 0.1))
 			input.scrollDelta = 0
 		}
 
-		let distance = Player.spectatorFlySpeed * flyStep * deltaTime
+		let distance = Player.spectatorFlySpeed * input.flyStep * deltaTime
 		
 		let sinYaw = Double(sin(yaw))
 		let cosYaw = Double(cos(yaw))

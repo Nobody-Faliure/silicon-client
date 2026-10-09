@@ -156,7 +156,7 @@ struct NBTReader {
 	}
 	
 	mutating func readMask() -> [Int] {
-		let longCount = readVarInt()
+		let longCount = min(readVarInt(), remaining / 8)
 		var sections: [Int] = []
 		
 		for longIndex in 0..<longCount {

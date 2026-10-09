@@ -675,15 +675,14 @@ struct ChunkMesher {
 								$0.from == element.from && $0.to == element.to
 							}
 							
-							let offset = overlaps
-							? direction(of: faceKey) * 0.0005
-							: SIMD3<Float>(repeating: 0)
-							
-							let positions = corners(faceKey: faceKey, from: f, to: t).map { $0 + offset }
-							
-							if positions.isEmpty {
-								continue
-							}
+							// An element painted on top of an identical one — grass's
+							// green fringe over its dirt side. Both faces must draw, so
+							// nudge the later one toward the camera in the shader rather
+							// than moving it in the world: a fixed world-space offset
+							// stops being enough as depth precision falls off.
+							let depthBias: Float = overlaps ? 0.0002 : 0
+
+							let positions = corners(faceKey: faceKey, from: f, to: t)
 							
 							// Matching lists: corner 0 pairs with uv 0, and so on.
 							let uvs = faceUVs(face)
@@ -698,7 +697,8 @@ struct ChunkMesher {
 										position: rotate(xRot, yRot, around: center, positions[i]),
 										uv: uvs[i],
 										tintIndex: Int32(face.tintindex ?? -1),
-										shade: faceShade
+										shade: faceShade,
+										depthBias: depthBias
 									)
 								)
 							}

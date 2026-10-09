@@ -3,10 +3,25 @@ import MetalKit
 import ImageIO
 
 struct Vertex {
-	let position: SIMD3<Float>
-	let uv: SIMD2<Float>
+	let x: Float
+	let y: Float
+	let z: Float
+	let u: Float
+	let v: Float
 	let tintIndex: Int32
 	let shade: Float
+	let depthBias: Float
+	
+	init(position: SIMD3<Float>, uv: SIMD2<Float>, tintIndex: Int32, shade: Float, depthBias: Float) {
+		x = position.x
+		y = position.y
+		z = position.z
+		u = uv.x
+		v = uv.y
+		self.tintIndex = tintIndex
+		self.shade = shade
+		self.depthBias = depthBias
+	}
 }
 
 // MTKViewDelegate lets Renderer receive draw calls from MTKView

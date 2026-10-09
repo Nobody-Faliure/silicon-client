@@ -2,10 +2,11 @@
 using namespace metal;
 
 struct Vertex {
-	float3 position;
-	float2 uv;
-	int tintIndex;
-	float shade;
+	  packed_float3 position;
+	  packed_float2 uv;
+	  int tintIndex;
+	  float shade;
+	  float depthBias;
 };
 
 struct VertexOut {
@@ -24,6 +25,7 @@ vertex VertexOut vertexShader(
 ) {
 	VertexOut out;
 	out.position = projectionMatrix * viewMatrix * float4(vertices[vertexID].position, 1.0);
+	out.position.z -= vertices[vertexID].depthBias * out.position.w;
 	out.uv = vertices[vertexID].uv;
 	out.tintIndex = vertices[vertexID].tintIndex;
 	out.shade = vertices[vertexID].shade;

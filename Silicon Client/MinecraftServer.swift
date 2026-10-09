@@ -73,6 +73,21 @@ final class MinecraftServer {
 	
 	func start(jar: URL, worldFolder: URL, onReady: @escaping () -> Void) {
 		self.worldFolder = worldFolder
+		
+		// Makes the folder if it is not there. On a clean Mac it is not, and
+		// starting Java inside a folder that does not exist crashes the app.
+		try? FileManager.default.createDirectory(
+			at: worldFolder,
+			withIntermediateDirectories: true
+		)
+		
+		// The server will not boot without this.
+		try? "eula=true\n".write(
+			to: worldFolder.appendingPathComponent("eula.txt"),
+			atomically: true,
+			encoding: .utf8
+		)
+		
 		killOrphan()
 		applyRequiredProperties(in: worldFolder)
 		let process = Process()
@@ -137,7 +152,10 @@ final class MinecraftServer {
 	}
 	
 	func stop() {
-		process?.terminate()
+		if process?.isRunning == true {
+			process?.terminate()
+		}
+		
 		process = nil
 	}
 }

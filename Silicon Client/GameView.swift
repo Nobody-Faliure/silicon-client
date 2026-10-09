@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct GameView: View {
+	let status: LoadingStatus
 	var body: some View {
-		MetalView()
+		MetalView(status: status)
 	}
 }

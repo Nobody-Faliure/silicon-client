@@ -2,19 +2,21 @@ import SwiftUI
 import MetalKit
 
 struct MetalView: NSViewRepresentable {
+	let status: LoadingStatus
+	
 	// Keeps the renderer alive
 	class Coordinator {
 		let renderer:  Renderer
 		let input = Input()
 		
-		init() {
-				renderer = Renderer(input: input)
+		init(status: LoadingStatus) {
+			renderer = Renderer(input: input, status: status)
 			}
 	}
 	
 	// Teaches swift how to use a coordinator
 	func makeCoordinator() -> Coordinator {
-		Coordinator()
+		Coordinator(status: status)
 	}
 	
 	// Creates the Metal view

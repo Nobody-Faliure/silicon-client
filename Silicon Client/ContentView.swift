@@ -3,10 +3,19 @@ import SwiftUI
 struct ContentView: View {
 
 	@State private var isPlaying = false
+	@StateObject private var status = LoadingStatus()
 
 	var body: some View {
 		if isPlaying {
-			GameView()
+			ZStack {
+				// Always built, even while hidden — creating it is what
+				// makes the Renderer, which starts the download.
+				GameView(status: status)
+
+				if !status.isReady {
+					LoadingView(status: status)
+				}
+			}
 		} else {
 			VStack {
 				Text("Silicon Client")

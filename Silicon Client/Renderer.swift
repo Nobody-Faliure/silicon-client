@@ -41,6 +41,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	static let eyeHeight: Float = 1.62
 	
+	let status: LoadingStatus
+	
 	private var positionTimer: Timer?
 	private var hasSpawned = false
 	
@@ -68,7 +70,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private var textureCache: [String: MTLTexture] = [:]
 	
 	// Creates all Metal resources when Renderer starts
-	init(input: Input) {
+	init(input: Input, status: LoadingStatus) {
 		
 		// Get the Mac's Metal GPU
 		self.device = MTLCreateSystemDefaultDevice()!
@@ -107,6 +109,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		// Store input
 		self.input = input
+		self.status = status
 		
 		let resourceDownloader = ResourceDownloader()
 
@@ -164,12 +167,15 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		Task {
 			do {
+				status.show("Downloading textures")
 				let textureFolder = try await resourceDownloader.downloadAllBlockAndItemTextures()
 				ChunkMesher.textureFolder = textureFolder.appendingPathComponent("block")
 				
+				status.show("Downloading block models")
 				let modelFolder = try await resourceDownloader.downloadAllModelJSONs()
 				self.modelFolder = modelFolder
 				
+				status.show("Downloading block states")
 				let blockStateFolder = try await resourceDownloader.downloadAllBlockStateJSONs()
 				self.blockStateFolder = blockStateFolder
 				
@@ -183,17 +189,19 @@ final class Renderer: NSObject, MTKViewDelegate {
 				let support = URL(fileURLWithPath: NSHomeDirectory())
 					.appendingPathComponent("Library/Application Support/Silicon Client")
 				
+				status.show("Downloading the server")
 				let serverJar = try await resourceDownloader.downloadServerJar()
 				
+				status.show("Starting the server")
 				minecraftServer.start(
 					jar: serverJar,
 					worldFolder: support.appendingPathComponent("Worlds/New World")
 				) {
-					print("server is ready")
+					self.status.show("Connecting")
 					self.serverConnection.connect(host: "127.0.0.1", port: self.minecraftServer.serverPort())
 				}
 			} catch {
-				print("Resource download failed:", error)
+				status.show("Failed: \(error.localizedDescription)")
 			}
 		}
 		AppDelegate.server = minecraftServer
@@ -284,6 +292,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 	func draw(in view: MTKView) {
 		if !clientWorld.dirtySections.isEmpty {
 			rebuildDirtySections()
+		}
+		
+		// The loading screen comes down only once the server has placed us
+		// and at least one chunk is on screen — otherwise it reveals a void.
+		if !status.isReady, hasSpawned, !sectionMeshes.isEmpty {
+			status.ready()
 		}
 		
 		let now = CACurrentMediaTime()

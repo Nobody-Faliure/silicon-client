@@ -151,6 +151,36 @@ final class MinecraftServer {
 		try? text.write(to: file, atomically: true, encoding: .utf8)
 	}
 	
+	static func generateReports(jar: URL) {
+		let versionFolder = jar.deletingLastPathComponent()
+		
+		let blocks = versionFolder
+			.appendingPathComponent("GeneratedData")
+			.appendingPathComponent("reports")
+			.appendingPathComponent("blocks.json")
+		
+		if FileManager.default.fileExists(atPath: blocks.path) { return }
+		
+		let process = Process()
+		process.executableURL = URL(fileURLWithPath: "/usr/bin/java")
+		process.arguments = [
+			"-DbundlerMainClass=net.minecraft.data.Main",
+			"-jar", jar.path,
+			"--reports",
+			"--output", "GeneratedData"
+		]
+		
+		process.currentDirectoryURL = versionFolder
+		
+		do {
+			try process.run()
+			process.waitUntilExit()
+			print("[reports] generated blocks.json")
+		} catch {
+			print("[reports] could not run the data generator: \(error)")
+		}
+	}
+	
 	func stop() {
 		if process?.isRunning == true {
 			process?.terminate()

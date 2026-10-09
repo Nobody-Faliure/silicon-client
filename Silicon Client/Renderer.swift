@@ -114,7 +114,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		self.status = status
 		
 		let resourceDownloader = ResourceDownloader()
-
+		
 		super.init()
 		
 		serverConnection.onChunk = { [weak self] chunk in
@@ -180,6 +180,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 				
 				status.show("Downloading the server")
 				let serverJar = try await resourceDownloader.downloadServerJar()
+				
+				status.show("Reading block data")
+				MinecraftServer.generateReports(jar: serverJar)
 				
 				status.show("Starting the server")
 				minecraftServer.start(
@@ -308,11 +311,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		if hasSpawned, now - lastPositionSend >= 0.05 {
 			lastPositionSend = now
-
+			
 			var player = self.player
 			player.yaw = -player.yaw * 180 / .pi
 			player.pitch = player.pitch * 180 / .pi
-
+			
 			serverConnection.sendPlayerPosition(player, onGround: false)
 			serverConnection.sendClientTickEnd()
 		}

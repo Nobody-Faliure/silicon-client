@@ -43,8 +43,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	let status: LoadingStatus
 	
-	private var positionTimer: Timer?
 	private var hasSpawned = false
+	
+	private var hasSentPlayerLoaded = false
+	private var lastPositionSend: CFTimeInterval = 0
+	private var lastPositionReceived: CFTimeInterval = 0
 	
 	private let meshQueue = DispatchQueue(
 		label: "dev.jasper.Silicon-Client.mesh",
@@ -133,6 +136,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		serverConnection.onPosition = { [weak self] new_player in
 			guard let self else { return }
+			self.lastPositionReceived = CACurrentMediaTime()
 			
 			player = new_player
 			self.hasSpawned = true
@@ -150,19 +154,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 			self.clientWorld.dirtySections = self.clientWorld.dirtySections.filter {
 				$0.chunkX != chunkX || $0.chunkZ != chunkZ
 			}
-		}
-		
-		positionTimer = Timer.scheduledTimer(
-			withTimeInterval: 1.0 / 20.0,
-			repeats: true
-		) { [weak self] _ in
-			guard let self, self.hasSpawned else { return }
-			
-			var player = self.player
-			player.yaw = -player.yaw * 180 / .pi
-			player.pitch = player.pitch * 180 / .pi
-			
-			self.serverConnection.sendPlayerPosition(player, onGround: false)
 		}
 		
 		Task {
@@ -288,23 +279,45 @@ final class Renderer: NSObject, MTKViewDelegate {
 		return nil
 	}
 	
+	private var standingOnLoadedChunk: Bool {
+		let chunkX = Int(player.x.rounded(.down)) >> 4
+		let chunkZ = Int(player.z.rounded(.down)) >> 4
+		
+		return sectionMeshes.contains {
+			$0.chunkX == chunkX && $0.chunkZ == chunkZ
+		}
+	}
+	
 	// Called repeatedly by MTKView to draw each frame
 	func draw(in view: MTKView) {
 		if !clientWorld.dirtySections.isEmpty {
 			rebuildDirtySections()
 		}
 		
-		// The loading screen comes down only once the server has placed us
-		// and at least one chunk is on screen — otherwise it reveals a void.
-		if !status.isReady, hasSpawned, !sectionMeshes.isEmpty {
-			status.ready()
-		}
-		
 		let now = CACurrentMediaTime()
 		let deltaTime = min(now - (lastFrameTime ?? now), 0.1)
 		lastFrameTime = now
 		
+		// The loading screen comes down only once the server has placed us
+		// and at least one chunk is on screen — otherwise it reveals a void.
+		if !hasSentPlayerLoaded, hasSpawned, standingOnLoadedChunk {
+			hasSentPlayerLoaded = true
+			serverConnection.sendPlayerLoaded()
+			status.ready()
+		}
+		
 		player.spectatorFly(input: input, deltaTime: deltaTime)
+		
+		if hasSpawned, now - lastPositionSend >= 0.05 {
+			lastPositionSend = now
+
+			var player = self.player
+			player.yaw = -player.yaw * 180 / .pi
+			player.pitch = player.pitch * 180 / .pi
+
+			serverConnection.sendPlayerPosition(player, onGround: false)
+			serverConnection.sendClientTickEnd()
+		}
 		
 		cameraPosition = SIMD3<Float>(
 			Float(player.x),

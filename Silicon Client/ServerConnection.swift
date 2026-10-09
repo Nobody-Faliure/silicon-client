@@ -326,4 +326,28 @@ final class ServerConnection {
 		
 		connection?.send(content: packet, completion: .contentProcessed { _ in })
 	}
+	
+	func sendClientTickEnd() {
+		var payload = Data()
+		
+		VarInt.write(0x0d, to: &payload)
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
+	func sendPlayerLoaded() {
+		var payload = Data()
+		
+		VarInt.write(0x2c, to: &payload)
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
 }

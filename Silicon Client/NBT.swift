@@ -133,7 +133,40 @@ struct NBTReader {
 		return .compound(readCompound())
 	}
 	
+	mutating func readNetworkRoot() -> NBTTag? {
+		guard readByte() == 10 else { return nil }
+		
+		return .compound(readCompound())
+	}
+	
 	mutating func readVarInt() -> Int {
 		return VarInt.read(from: data, at: &index) ?? 0
+	}
+	
+	mutating func readBytes(_ count: Int) -> Data {
+		guard count > 0, remaining >= count else {
+			index = data.count
+			return Data()
+		}
+		
+		let start = data.startIndex + index
+		index += count
+		
+		return data[start ..< start + count]
+	}
+	
+	mutating func readMask() -> [Int] {
+		let longCount = readVarInt()
+		var sections: [Int] = []
+		
+		for longIndex in 0..<longCount {
+			let bits = readLong()
+			
+			for bit in 0..<64 where (bits >> bit) & 1 == 1 {
+				sections.append(longIndex * 64 + bit)
+			}
+		}
+		
+		return sections
 	}
 }

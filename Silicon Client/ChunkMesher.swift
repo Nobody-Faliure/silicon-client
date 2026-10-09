@@ -357,6 +357,13 @@ struct ChunkMesher {
 		
 		return reference
 	}
+	
+	static func brightness(ofLight level: Int) -> Float {
+		let f = Float(level) / 15
+		
+		return max(f / (4 - 3 * f), 0.05)
+	}
+	
 	static func shade(of faceKey: String) -> Float {
 		switch faceKey {
 		case "up":             return 1.0
@@ -593,6 +600,31 @@ struct ChunkMesher {
 			return neighbourHides(neighbour, blockStateFolder: blockStateFolder, modelFolder: modelFolder)
 		}
 		
+		// The light level, 0 to 15, of the block this face points at. Light
+		// lives in the air next to a face, never inside the solid block the
+		// face belongs to, so this steps one block along dir first.
+		//
+		// 15 when we cannot tell — off the world, or a chunk we have not
+		// loaded. Guessing bright means unknown ground is never darkened.
+		func lightLevel(_ x: Int, _ y: Int, _ z: Int, _ dir: SIMD3<Float>) -> Int {
+			let nx = x + Int(dir.x), ny = y + Int(dir.y), nz = z + Int(dir.z)
+			
+			guard ny >= -64, ny < -64 + chunk.height,
+				  let containingChunk = clientWorld.chunk(
+					atX: chunk.chunkX + (nx >> 4),
+					z: chunk.chunkZ + (nz >> 4)
+				  ) else {
+				return 15
+			}
+			
+			let location = containingChunk.locate(ny)
+			let section = containingChunk.sections[location.section]
+			
+			return section.lightLevel(
+				at: section.index(x: nx & 15, y: location.localY, z: nz & 15)
+			)
+		}
+		
 		// Visit every position in the section, one block at a time.
 		let bottomY = -64 + sectionIndex * Section.height
 		for y in bottomY..<bottomY + Section.height {
@@ -690,7 +722,21 @@ struct ChunkMesher {
 							
 							// Two triangles covering the quad, wound so the
 							// outside face survives setCullMode(.back)
+							// Only faces lying on the block's boundary take their light
+							// from next door. A face inside the block — a plant's
+							// crossed panels, an anvil's sides — is lit by its own block.
+							let lightDirection = face.cullface == nil
+							? SIMD3<Float>(0, 0, 0)
+							: rotate(
+								xRot,
+								yRot,
+								around: SIMD3<Float>(0, 0, 0),
+								direction(of: faceKey)
+							)
+							
 							let faceShade = shade(of: faceKey)
+							* brightness(ofLight: lightLevel(x, y, z, lightDirection))
+							
 							for i in [0, 3, 2, 2, 1, 0] {
 								verticesByTexture[texture, default: []].append(
 									Vertex(

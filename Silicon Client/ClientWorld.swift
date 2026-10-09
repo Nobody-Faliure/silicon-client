@@ -1,3 +1,5 @@
+import Foundation
+
 struct SectionPosition: Hashable {
 	  let chunkX: Int
 	  let chunkZ: Int
@@ -68,6 +70,22 @@ final class ClientWorld {
 
 				return
 			}
+		}
+	}
+	
+	func receiveLight(chunkX: Int, chunkZ: Int, sky: [Int: Data], block: [Int: Data]) {
+		for i in 0..<chunks.count where chunks[i].chunkX == chunkX && chunks[i].chunkZ == chunkZ {
+			for (section, light) in sky where section >= 0 && section < Chunk.sectionCount {
+				chunks[i].sections[section].skyLight = light
+				dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section))
+			}
+			
+			for (section, light) in block where section >= 0 && section < Chunk.sectionCount {
+				chunks[i].sections[section].blockLight = light
+				dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section))
+			}
+			
+			return
 		}
 	}
 	

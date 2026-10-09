@@ -1,3 +1,5 @@
+import Foundation
+
 struct Block: Hashable {
 	let id: String
 }
@@ -18,6 +20,9 @@ struct BlockState: Hashable {
 
 struct Section {
 	var blocks: [BlockState]
+	
+	var skyLight = Data()
+	var blockLight = Data()
 	
 	static let width = 16
 	static let depth = 16
@@ -44,6 +49,24 @@ struct Section {
 	
 	mutating func setBlock(x: Int, y: Int, z: Int, block: BlockState) {
 		blocks[index(x: x, y: y, z: z)] = block
+	}
+	
+	func lightLevel(at index: Int) -> Int {
+		let sky = skyLight.isEmpty ? 15 : nibble(skyLight, index)
+		let block = blockLight.isEmpty ? 0 : nibble(blockLight, index)
+		
+		return max(sky, block)
+	}
+	
+	// Two blocks share a byte: the even one is the low half, the odd one the high half.
+	private func nibble(_ light: Data, _ index: Int) -> Int {
+		let byteIndex = index >> 1
+		
+		guard byteIndex < light.count else { return 0 }
+		
+		let byte = light[light.startIndex + byteIndex]
+		
+		return index & 1 == 0 ? Int(byte & 0xF) : Int(byte >> 4)
 	}
 }
 

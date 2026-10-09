@@ -17,6 +17,7 @@ final class ServerConnection {
 	var onChunk: ((Chunk) -> Void)?
 	var onPosition: ((Player) -> Void)?
 	var onForgetChunk: ((Int, Int) -> Void)?
+	var onLight: ((Int, Int, [Int: Data], [Int: Data]) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -168,6 +169,19 @@ final class ServerConnection {
 			}
 		case (.play, 0x0b):
 			sendChunkBatchReceived(chunksPerTick: 16)
+		case (.play, 0x30):
+			var reader = NBTReader(data: packet)
+			
+			_ = reader.readVarInt()
+			
+			let chunkX = reader.readVarInt()
+			let chunkZ = reader.readVarInt()
+			
+			let light = LightDecoder.decode(from: &reader)
+			
+			DispatchQueue.main.async {
+				self.onLight?(chunkX, chunkZ, light.sky, light.block)
+			}
 		case (.play, 0x25):
 			var reader = NBTReader(data: packet)
 			_ = reader.readVarInt()

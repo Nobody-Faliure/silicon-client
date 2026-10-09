@@ -41,6 +41,24 @@ enum ChunkDecoder {
 			}
 		}
 		
+		let blockEntityCount = reader.readVarInt()
+		
+		for _ in 0..<blockEntityCount {
+			reader.index += 3        // packed x/z in one byte, then y as a short
+			_ = reader.readVarInt()  // which kind of block entity
+			_ = reader.readNetworkRoot()    // its NBT
+		}
+		
+		let light = LightDecoder.decode(from: &reader)
+		
+		for (section, bytes) in light.sky where section >= 0 && section < Chunk.sectionCount {
+			chunk.sections[section].skyLight = bytes
+		}
+		
+		for (section, bytes) in light.block where section >= 0 && section < Chunk.sectionCount {
+			chunk.sections[section].blockLight = bytes
+		}
+		
 		return chunk
 	}
 }

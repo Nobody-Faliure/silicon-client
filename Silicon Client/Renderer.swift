@@ -155,6 +155,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 			self.hasSpawned = true
 		}
 		
+		serverConnection.onLight = { [weak self] chunkX, chunkZ, sky, block in
+			guard let self else { return }
+			
+			self.clientWorld.receiveLight(chunkX: chunkX, chunkZ: chunkZ, sky: sky, block: block)
+		}
+		
 		serverConnection.onForgetChunk = { [weak self] chunkX, chunkZ in
 			guard let self else { return }
 			

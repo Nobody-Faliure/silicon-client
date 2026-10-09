@@ -4,16 +4,21 @@ struct ContentView: View {
 
 	@State private var isPlaying = false
 	@StateObject private var status = LoadingStatus()
+	@StateObject private var debug = DebugInfo()
 
 	var body: some View {
 		if isPlaying {
 			ZStack {
 				// Always built, even while hidden — creating it is what
 				// makes the Renderer, which starts the download.
-				GameView(status: status)
+				GameView(status: status, debug: debug)
 
 				if !status.isReady {
 					LoadingView(status: status)
+				}
+				
+				if debug.isVisible {
+					DebugView(info: debug)
 				}
 			}
 		} else {

@@ -57,11 +57,22 @@ final class Renderer: NSObject, MTKViewDelegate {
 	static let eyeHeight: Float = 1.62
 	
 	let status: LoadingStatus
+	let debug: DebugInfo
 	
 	private var hasSpawned = false
 	
 	private var hasSentPlayerLoaded = false
 	private var lastPositionSend: CFTimeInterval = 0
+	// Readings — position, counts — refresh four times a second, which is
+	// fast enough to follow while flying.
+	private var lastReadingUpdate: CFTimeInterval = 0
+	
+	// Rates only exist over a window. These collect one second's worth,
+	// then publish and start again.
+	private var secondStarted: CFTimeInterval = 0
+	private var framesThisSecond = 0
+	private var meshMillisecondsThisSecond = 0.0
+	private var sectionsMeshedThisSecond = 0
 	
 	private let meshQueue = DispatchQueue(
 		label: "dev.jasper.Silicon-Client.mesh",
@@ -87,7 +98,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private var textureCache: [String: MTLTexture] = [:]
 	
 	// Creates all Metal resources when Renderer starts
-	init(input: Input, status: LoadingStatus) {
+	init(input: Input, status: LoadingStatus, debug: DebugInfo) {
 		
 		// Get the Mac's Metal GPU
 		self.device = MTLCreateSystemDefaultDevice()!
@@ -126,7 +137,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		// Store input
 		self.input = input
+		
 		self.status = status
+		
+		self.debug = debug
 		
 		let resourceDownloader = ResourceDownloader()
 		
@@ -220,6 +234,77 @@ final class Renderer: NSObject, MTKViewDelegate {
 		AppDelegate.server = minecraftServer
 	}
 	
+	private func updateDebug(now: CFTimeInterval, deltaTime: Double) {
+		framesThisSecond += 1
+		
+		if debug.isVisible != input.showDebug {
+			debug.isVisible = input.showDebug
+		}
+		
+		// Rates: one whole second, then publish and reset.
+		if now - secondStarted >= 1 {
+			let elapsed = now - secondStarted
+			
+			debug.fps = Int((Double(framesThisSecond) / elapsed).rounded())
+			debug.frameMilliseconds = elapsed / Double(max(framesThisSecond, 1)) * 1000
+			
+			if sectionsMeshedThisSecond > 0 {
+				debug.meshMilliseconds = meshMillisecondsThisSecond / Double(sectionsMeshedThisSecond)
+			}
+			
+			secondStarted = now
+			framesThisSecond = 0
+			meshMillisecondsThisSecond = 0
+			sectionsMeshedThisSecond = 0
+		}
+		
+		// Readings: just what things are right now.
+		guard now - lastReadingUpdate >= 0.25 else { return }
+		
+		lastReadingUpdate = now
+		
+		debug.x = player.x
+		debug.y = player.y
+		debug.z = player.z
+		debug.facing = Renderer.facingName(yaw: player.yaw, pitch: player.pitch)
+		debug.yaw = Renderer.yawDegrees(player.yaw)
+		debug.pitch = Double(player.pitch * 180 / .pi)
+		debug.blocksPerSecond = Player.spectatorFlySpeed * input.flyStep
+		
+		debug.chunksLoaded = clientWorld.chunks.count
+		debug.sectionMeshes = sectionMeshes.count
+		debug.sectionsQueued = clientWorld.dirtySections.count
+	}
+
+	
+	// Which way the camera points, in words. Eight compass directions, or
+	// up and down once you are looking steeply enough that the compass
+	// stops being what you want to know.
+	private static func facingName(yaw: Float, pitch: Float) -> String {
+		let pitchDegrees = pitch * 180 / .pi
+		
+		if pitchDegrees >  60 { return "down" }
+		if pitchDegrees < -60 { return "up" }
+		
+		let names = [
+			"south", "south-west", "west", "north-west",
+			"north", "north-east", "east", "south-east"
+		]
+		
+		let degrees = Renderer.yawDegrees(yaw)
+		let sector = Int((degrees / 45).rounded()) % 8
+		
+		return names[sector]
+	}
+	
+	// Yaw as the game writes it: degrees, 0 up to 360, sign flipped from ours.
+	private static func yawDegrees(_ yaw: Float) -> Double {
+		let raw = Double(-yaw * 180 / .pi)
+		
+		return (raw.truncatingRemainder(dividingBy: 360) + 360)
+			.truncatingRemainder(dividingBy: 360)
+	}
+	
 	func rebuildDirtySections() {
 		guard let modelFolder, let blockStateFolder else { return }
 		
@@ -235,6 +320,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 			clientWorld.dirtySections.remove(position)
 			
 			meshQueue.async {
+				let started = CACurrentMediaTime()
+				
 				let mesh = buildSectionRenderMesh(
 					from: chunk,
 					sectionIndex: position.sectionIndex,
@@ -243,6 +330,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 					blockStateFolder: blockStateFolder,
 					clientWorld: world
 				)
+				
+				let took = (CACurrentMediaTime() - started) * 1000
+				self.meshMillisecondsThisSecond += took
+				self.sectionsMeshedThisSecond += 1
 				
 				DispatchQueue.main.async {
 					guard self.clientWorld.chunk(atX: position.chunkX, z: position.chunkZ) != nil else { return }
@@ -329,6 +420,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 		}
 		
 		player.spectatorFly(input: input, deltaTime: deltaTime)
+		
+		updateDebug(now: now, deltaTime: deltaTime)
 		
 		if hasSpawned, now - lastPositionSend >= 0.05 {
 			lastPositionSend = now

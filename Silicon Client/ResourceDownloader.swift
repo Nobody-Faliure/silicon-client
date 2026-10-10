@@ -157,7 +157,7 @@ final class ResourceDownloader {
 			// Ignore everything except block/item PNGs
 			guard
 				(isBlockTexture || isItemTexture),
-				path.hasSuffix(".png")
+				path.hasSuffix(".png") || path.hasSuffix(".mcmeta")
 			else {
 				continue
 			}
@@ -198,7 +198,10 @@ final class ResourceDownloader {
 
 			// Re-encode the PNG through AppKit.
 			// This avoids the image decoding issue we had with some textures.
-			if let image = NSImage(data: textureData),
+			// .mcmeta is JSON, not a picture. Re-encoding would destroy it.
+			if path.hasSuffix(".mcmeta") {
+				try textureData.write(to: destinationURL)
+			} else if let image = NSImage(data: textureData),
 			   let tiffData = image.tiffRepresentation,
 			   let bitmap = NSBitmapImageRep(data: tiffData),
 			   let pngData = bitmap.representation(using: .png, properties: [:]) {

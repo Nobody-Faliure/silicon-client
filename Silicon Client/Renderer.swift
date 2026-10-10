@@ -97,6 +97,16 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	private var textureCache: [String: MTLTexture] = [:]
 	
+	private struct AnimatedTexture {
+		let texture: MTLTexture
+		let frames: Data
+		let size: Int
+		let animation: TextureAnimation
+	}
+	
+	private var animatedTextures: [String: AnimatedTexture] = [:]
+	private var lastAnimationTick = -1
+	
 	// Creates all Metal resources when Renderer starts
 	init(input: Input, status: LoadingStatus, debug: DebugInfo) {
 		
@@ -305,6 +315,37 @@ final class Renderer: NSObject, MTKViewDelegate {
 			.truncatingRemainder(dividingBy: 360)
 	}
 	
+	private func advanceAnimations(now: CFTimeInterval) {
+		let tick = Int(now * 20)
+		
+		guard tick != lastAnimationTick else { return }
+		
+		lastAnimationTick = tick
+		
+		for animated in animatedTextures.values {
+			let order = animated.animation.frameOrder
+
+			guard !order.isEmpty else { continue }
+			
+			let step = (tick / animated.animation.ticksPerFrame) % order.count
+			let frame = order[step]
+			
+			let bytesPerFrame = animated.size * animated.size * 4
+			let start = frame * bytesPerFrame
+			
+			guard start + bytesPerFrame <= animated.frames.count else { continue }
+			
+			animated.frames.withUnsafeBytes { raw in
+				animated.texture.replace(
+					region: MTLRegionMake2D(0, 0, animated.size, animated.size),
+					mipmapLevel: 0,
+					withBytes: raw.baseAddress! + start,
+					bytesPerRow: animated.size * 4
+				)
+			}
+		}
+	}
+	
 	func rebuildDirtySections() {
 		guard let modelFolder, let blockStateFolder else { return }
 		
@@ -422,6 +463,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 		player.spectatorFly(input: input, deltaTime: deltaTime)
 		
 		updateDebug(now: now, deltaTime: deltaTime)
+		
+		advanceAnimations(now: now)
 		
 		if hasSpawned, now - lastPositionSend >= 0.05 {
 			lastPositionSend = now
@@ -641,13 +684,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 			.appendingPathComponent(textureName)
 			.appendingPathExtension("png")
 		
-		let loaded = loadMinecraftTexture(from: textureURL)
+		let loaded = loadMinecraftTexture(from: textureURL, named: textureName)
 		textureCache[name] = loaded
 		return loaded
 	}
 	
 	// Decodes a Minecraft PNG into raw pixels and creates a Metal texture
-	func loadMinecraftTexture(from textureURL: URL) -> MTLTexture {
+	func loadMinecraftTexture(from textureURL: URL, named name: String) -> MTLTexture {
 		do {
 			let data = try Data(contentsOf: textureURL)
 			
@@ -667,6 +710,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 			
 			let width = cgImage.width
 			let height = cgImage.height
+			
+			let frameHeight = height > width ? width : height
 			
 			// Allocate enough memory for RGBA pixels
 			let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
@@ -707,7 +752,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			let descriptor = MTLTextureDescriptor.texture2DDescriptor(
 				pixelFormat: .rgba8Unorm_srgb,
 				width: width,
-				height: height,
+				height: frameHeight,
 				mipmapped: false
 			)
 			
@@ -721,12 +766,28 @@ final class Renderer: NSObject, MTKViewDelegate {
 					0,
 					0,
 					width,
-					height
+					frameHeight
 				),
 				mipmapLevel: 0,
 				withBytes: pixelData,
 				bytesPerRow: bytesPerRow
 			)
+			
+			// A strip: remember every frame so draw() can swap them later.
+			if height > width {
+				let folder = textureURL.deletingLastPathComponent()
+				
+				animatedTextures[name] = AnimatedTexture(
+					texture: texture,
+					frames: Data(bytes: pixelData, count: byteCount),
+					size: width,
+					animation: TextureAnimation.load(
+						name: name,
+						frameCount: height / width,
+						in: folder
+					)
+				)
+			}
 			
 			return texture
 		} catch {

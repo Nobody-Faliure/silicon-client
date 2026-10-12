@@ -1,5 +1,6 @@
 import Metal
 import Foundation
+import simd
 
 struct SectionMaterialMesh {
 	let textureName: String
@@ -12,6 +13,23 @@ struct SectionRenderMesh {
 	let chunkZ: Int
 	let sectionIndex: Int
 	let materials: [SectionMaterialMesh]
+	
+	// The 8 corners of this section, in world coordinates.
+	var corners: [SIMD3<Float>] {
+		let minX = Float(chunkX * 16)
+		let minY = Float(-64 + sectionIndex * 16)
+		let minZ = Float(chunkZ * 16)
+		
+		var result: [SIMD3<Float>] = []
+		for x in [minX, minX + 16] {
+			for y in [minY, minY + 16] {
+				for z in [minZ, minZ + 16] {
+					result.append(SIMD3<Float>(x, y, z))
+				}
+			}
+		}
+		return result
+	}
 }
 
 func buildSectionRenderMesh(

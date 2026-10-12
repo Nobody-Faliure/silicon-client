@@ -26,6 +26,8 @@ struct MetalView: NSViewRepresentable {
 		let renderer = context.coordinator.renderer // gets the renderer stored in the coordinator
 		view.device = renderer.device
 		view.delegate = renderer
+		view.preferredFramesPerSecond = 500
+		(view.layer as? CAMetalLayer)?.displaySyncEnabled = false
 		return view
 	}
 	

@@ -589,8 +589,14 @@ final class Renderer: NSObject, MTKViewDelegate {
 			index: 2
 		)
 		
+		let viewProjection = projectionMatrix * viewMatrix
+		
 		// Draw current mesh
 		for mesh in sectionMeshes {
+			if !isBoxOnScreen(mesh.corners, viewProjection) {
+				continue
+			}
+			
 			for material in mesh.materials {
 				let materialTexture = texture(named: material.textureName)
 				

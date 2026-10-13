@@ -358,6 +358,22 @@ struct ChunkMesher {
 		return reference
 	}
 	
+	// Water and lava carry a "level" property. 0 is a source block, 1-7 are
+	// flowing and get shorter as the number rises, 8 and above are falling
+	// and render full. Returns nil for anything that is not a fluid.
+	static func fluidHeight(of blockState: BlockState) -> Float? {
+		let id = blockState.block.id
+		
+		guard id == "minecraft:water" || id == "minecraft:lava" else {
+			return nil
+		}
+		
+		let level = Int(blockState.properties["level"] ?? "0") ?? 0
+		let amount = (level == 0 || level >= 8) ? 8 : 8 - level
+		
+		return Float(amount) / 9
+	}
+	
 	static func brightness(ofLight level: Int) -> Float {
 		let f = Float(level) / 15
 		
@@ -377,19 +393,19 @@ struct ChunkMesher {
 		let bare = name
 			.replacingOccurrences(of: "minecraft:", with: "")
 			.replacingOccurrences(of: "block/", with: "")
-
+		
 		if let known = textureIsSolid[bare] { return known }
-
+		
 		guard let folder = textureFolder else { return false }
-
+		
 		let url = folder.appendingPathComponent(bare).appendingPathExtension("png")
-
+		
 		var solid = false
 		if let source = CGImageSourceCreateWithURL(url as CFURL, nil),
 		   let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] {
 			solid = (properties[kCGImagePropertyHasAlpha] as? Bool) != true
 		}
-
+		
 		textureIsSolid[bare] = solid
 		return solid
 	}
@@ -407,16 +423,16 @@ struct ChunkMesher {
 				  faces.count == 6 else {
 				continue
 			}
-
+			
 			let allSolid = faces.values.allSatisfy {
 				isSolid(texture: resolveTexture($0.texture, in: resolved))
 			}
-
+			
 			if allSolid {
 				return true
 			}
 		}
-
+		
 		return false
 	}
 	
@@ -660,6 +676,169 @@ struct ChunkMesher {
 					let origin = SIMD3<Float>(bx, by, bz)
 					let center = SIMD3<Float>(bx + 0.5, by + 0.5, bz + 0.5)
 					
+					// A top corner is shared by four columns. It sits at the average
+					// height of whichever of them are the same fluid; the others are
+					// ignored rather than counted as zero. Fluid directly above any of
+					// them raises the corner to a full block, so a waterfall has no
+					// notch at every boundary.
+					func cornerHeight(
+						_ x: Int, _ y: Int, _ z: Int,
+						_ dx: Int, _ dz: Int,
+						_ id: String
+					) -> Float {
+						var total: Float = 0
+						var count: Float = 0
+						
+						for ox in (dx - 1)...dx {
+							for oz in (dz - 1)...dz {
+								let wx = x + chunk.chunkX * Section.width + ox
+								let wz = z + chunk.chunkZ * Section.depth + oz
+								
+								if let above = clientWorld.getBlockState(worldX: wx, y: y + 1, worldZ: wz),
+								   above.block.id == id {
+									return 1
+								}
+								
+								guard let state = clientWorld.getBlockState(worldX: wx, y: y, worldZ: wz),
+									  state.block.id == id,
+									  let height = fluidHeight(of: state) else { continue }
+								
+								total += height
+								count += 1
+							}
+						}
+						
+						return count == 0 ? 0 : total / count
+					}
+					
+					// Fluids have no model, so their surface is built here
+					// instead of from elements.
+					if fluidHeight(of: blockState) != nil {
+						let id = blockState.block.id
+						let wx = x + chunk.chunkX * Section.width
+						let wz = z + chunk.chunkZ * Section.depth
+						
+						// More of the same fluid directly above means this
+						// block is inside a body of water, not at its surface.
+						let coveredAbove = clientWorld.getBlockState(
+							worldX: wx, y: y + 1, worldZ: wz
+						)?.block.id == id
+						
+						let h = [
+							cornerHeight(x, y, z, 0, 0, id),
+							cornerHeight(x, y, z, 1, 0, id),
+							cornerHeight(x, y, z, 1, 1, id),
+							cornerHeight(x, y, z, 0, 1, id)
+						]
+						
+						let positions = [
+							SIMD3<Float>(bx,     by + h[0], bz),
+							SIMD3<Float>(bx + 1, by + h[1], bz),
+							SIMD3<Float>(bx + 1, by + h[2], bz + 1),
+							SIMD3<Float>(bx,     by + h[3], bz + 1)
+						]
+						
+						let uvs = [
+							SIMD2<Float>(0, 0), SIMD2<Float>(1, 0),
+							SIMD2<Float>(1, 1), SIMD2<Float>(0, 1)
+						]
+						
+						let texture = resolveTexture("#particle", in: resolved)
+						
+						if (!coveredAbove) {
+							let faceShade = shade(of: "up")
+							* brightness(ofLight: lightLevel(x, y, z, SIMD3<Float>(0, 1, 0)))
+							
+							for i in [0, 3, 2, 2, 1, 0] {
+								verticesByTexture[texture, default: []].append(
+									Vertex(
+										position: positions[i],
+										uv: uvs[i],
+										tint: SIMD3<Float>(1, 1, 1),
+										shade: faceShade,
+										depthBias: 0
+									)
+								)
+							}
+						}
+						
+						for (faceKey, tops) in [
+							("north", [h[3], h[2]]),
+							("south", [h[1], h[0]]),
+							("west",  [h[0], h[3]]),
+							("east",  [h[2], h[1]])
+						] {
+							let dir = direction(of: faceKey)
+							
+							if clientWorld.getBlockState(
+								worldX: wx + Int(dir.x),
+								y: y,
+								worldZ: wz + Int(dir.z)
+							)?.block.id == id { continue }
+							
+							if hidden(x, y, z, dir) { continue }
+							
+							var side = corners(
+								faceKey: faceKey,
+								from: origin,
+								to: origin + SIMD3<Float>(1, 1, 1)
+							)
+							
+							side[0].y = by + tops[0]
+							side[1].y = by + tops[1]
+							
+							let sideUVs = [
+								SIMD2<Float>(0, 1 - tops[0]),
+								SIMD2<Float>(1, 1 - tops[1]),
+								SIMD2<Float>(1, 1),
+								SIMD2<Float>(0, 1)
+							]
+							
+							let sideShade = shade(of: faceKey)
+							* brightness(ofLight: lightLevel(x, y, z, dir))
+							
+							for i in [0, 3, 2, 2, 1, 0] {
+								verticesByTexture[texture, default: []].append(
+									Vertex(
+										position: side[i],
+										uv: sideUVs[i],
+										tint: SIMD3<Float>(1, 1, 1),
+										shade: sideShade,
+										depthBias: 0
+									)
+								)
+							}
+							
+							// The underside. Flat, full size — a fluid's botctom is
+							// never sloped, however the top behaves.
+							if clientWorld.getBlockState(worldX: wx, y: y - 1, worldZ: wz)?
+								.block.id != id,
+							   !hidden(x, y, z, SIMD3<Float>(0, -1, 0)) {
+								
+								let under = corners(
+									faceKey: "down",
+									from: origin,
+									to: origin + SIMD3<Float>(1, 1, 1)
+								)
+								
+								let underShade = shade(of: "down")
+								* brightness(ofLight: lightLevel(x, y, z, SIMD3<Float>(0, -1, 0)))
+								
+								for i in [0, 3, 2, 2, 1, 0] {
+									verticesByTexture[texture, default: []].append(
+										Vertex(
+											position: under[i],
+											uv: uvs[i],
+											tint: SIMD3<Float>(1, 1, 1),
+											shade: underShade,
+											depthBias: 0
+										)
+									)
+								}
+							}
+						}
+					}
+					
 					// One pass per box. A cube has a single box; the anvil has
 					// four, so a single anvil runs this four times.
 					for (elementIndex, element) in resolved.elements.enumerated() {
@@ -713,7 +892,7 @@ struct ChunkMesher {
 							// than moving it in the world: a fixed world-space offset
 							// stops being enough as depth precision falls off.
 							let depthBias: Float = overlaps ? 0.0002 : 0
-
+							
 							let positions = corners(faceKey: faceKey, from: f, to: t)
 							
 							// Matching lists: corner 0 pairs with uv 0, and so on.

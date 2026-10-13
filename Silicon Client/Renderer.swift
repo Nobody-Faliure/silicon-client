@@ -735,20 +735,21 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	// Finds a downloaded Minecraft texture by its resource name
 	func texture(named name: String) -> MTLTexture {
+		// Convert "minecraft:block/stone" or "block/stone" into "stone.png"
+		let textureName = name
+			.replacingOccurrences(of: "minecraft:", with: "")
+			.replacingOccurrences(of: "block/", with: "")
+		
 		if let cached = textureCache[name] {
 			return cached
 		}
+		
 		let texturesFolder = FileManager.default.urls(
 			for: .applicationSupportDirectory,
 			in: .userDomainMask
 		)[0]
 			.appendingPathComponent("Silicon Client")
 			.appendingPathComponent("assets/minecraft/textures/block")
-		
-		// Convert "minecraft:block/stone" or "block/stone" into "stone.png"
-		let textureName = name
-			.replacingOccurrences(of: "minecraft:", with: "")
-			.replacingOccurrences(of: "block/", with: "")
 		
 		let textureURL = texturesFolder
 			.appendingPathComponent(textureName)

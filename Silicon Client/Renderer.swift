@@ -793,6 +793,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 				alignment: 64
 			)
 			
+			memset(pixelData, 0, byteCount)
+			
 			defer {
 				pixelData.deallocate()
 			}

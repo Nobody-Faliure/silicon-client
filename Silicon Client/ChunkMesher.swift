@@ -578,10 +578,21 @@ struct ChunkMesher {
 		modelFolder: URL,
 		blockStateFolder: URL,
 		clientWorld: ClientWorld
-	) -> [String: [Vertex]] {
+	) -> (opaque: [String: [Vertex]], translucent: [String: [Vertex]]) {
 		
 		// texture name -> vertices using that texture
 		var verticesByTexture: [String: [Vertex]] = [:]
+		var translucentByTexture: [String: [Vertex]] = [:]
+		
+		// Water is drawn in a second pass, after everything opaque, so it has
+		// something behind it to blend with.
+		func emit(_ texture: String, _ vertex: Vertex, translucent: Bool) {
+			if translucent {
+				translucentByTexture[texture, default: []].append(vertex)
+			} else {
+				verticesByTexture[texture, default: []].append(vertex)
+			}
+		}
 		
 		let air = Block(id: "minecraft:air")
 		
@@ -724,12 +735,38 @@ struct ChunkMesher {
 							worldX: wx, y: y + 1, worldZ: wz
 						)?.block.id == id
 						
+						let fluidTint: SIMD3<Float> = {
+							guard id == "minecraft:water" else {
+								return SIMD3<Float>(1, 1, 1)
+							}
+							
+							let biomeIndex = chunk.sections[sectionIndex]
+								.biomeID(x: x, y: y - bottomY, z: z)
+							
+							guard biomeIndex < BiomeRegistry.biomes.count else {
+								return SIMD3<Float>(1, 1, 1)
+							}
+							
+							return BiomeRegistry.biomes[biomeIndex].waterColor
+							?? SIMD3<Float>(1, 1, 1)
+						}()
+						
+						let isWater = id == "minecraft:water"
+						
 						let h = [
 							cornerHeight(x, y, z, 0, 0, id),
 							cornerHeight(x, y, z, 1, 0, id),
 							cornerHeight(x, y, z, 1, 1, id),
 							cornerHeight(x, y, z, 0, 1, id)
 						]
+						
+						// Comparing the two sides of the block gives the slope.
+						// A flat surface has none and uses the still texture.
+						let slopeX = (h[1] + h[2]) - (h[0] + h[3])
+						let slopeZ = (h[2] + h[3]) - (h[0] + h[1])
+						
+						let isFlowing = abs(slopeX) > 0.0001 || abs(slopeZ) > 0.0001
+						let flowAngle = atan2(-slopeX, -slopeZ)
 						
 						let positions = [
 							SIMD3<Float>(bx,     by + h[0], bz),
@@ -745,20 +782,41 @@ struct ChunkMesher {
 						
 						let texture = resolveTexture("#particle", in: resolved)
 						
+						// The flow texture sits beside the still one in the
+						// pack, so derive its name rather than typing a path.
+						let topTexture = isFlowing
+						? texture.replacingOccurrences(of: "_still", with: "_flow")
+						: texture
+						
+						var topUVs = uvs
+						
+						if isFlowing {
+							let s = sin(flowAngle) * 0.25
+							let c = cos(flowAngle) * 0.25
+							
+							// Same order as h and positions: (0,0) (1,0) (1,1) (0,1)
+							let offsets: [(Float, Float)] = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+							
+							topUVs = offsets.map { dx, dz in
+								SIMD2<Float>(
+									0.5 + dx * c - dz * s,
+									0.5 + dx * s + dz * c
+								)
+							}
+						}
+						
 						if (!coveredAbove) {
 							let faceShade = shade(of: "up")
 							* brightness(ofLight: lightLevel(x, y, z, SIMD3<Float>(0, 1, 0)))
 							
 							for i in [0, 3, 2, 2, 1, 0] {
-								verticesByTexture[texture, default: []].append(
-									Vertex(
-										position: positions[i],
-										uv: uvs[i],
-										tint: SIMD3<Float>(1, 1, 1),
-										shade: faceShade,
-										depthBias: 0
-									)
-								)
+								emit(topTexture, Vertex(
+									position: positions[i],
+									uv: topUVs[i],
+									tint: fluidTint,
+									shade: faceShade,
+									depthBias: 0
+								), translucent: isWater)
 							}
 						}
 						
@@ -798,43 +856,39 @@ struct ChunkMesher {
 							* brightness(ofLight: lightLevel(x, y, z, dir))
 							
 							for i in [0, 3, 2, 2, 1, 0] {
-								verticesByTexture[texture, default: []].append(
-									Vertex(
-										position: side[i],
-										uv: sideUVs[i],
-										tint: SIMD3<Float>(1, 1, 1),
-										shade: sideShade,
-										depthBias: 0
-									)
-								)
+								emit(texture, Vertex(
+									position: side[i],
+									uv: sideUVs[i],
+									tint: fluidTint,
+									shade: sideShade,
+									depthBias: 0
+								), translucent: isWater)
 							}
+						}
+						
+						// The underside. Flat, full size — a fluid's botctom is
+						// never sloped, however the top behaves.
+						if clientWorld.getBlockState(worldX: wx, y: y - 1, worldZ: wz)?
+							.block.id != id,
+						   !hidden(x, y, z, SIMD3<Float>(0, -1, 0)) {
 							
-							// The underside. Flat, full size — a fluid's botctom is
-							// never sloped, however the top behaves.
-							if clientWorld.getBlockState(worldX: wx, y: y - 1, worldZ: wz)?
-								.block.id != id,
-							   !hidden(x, y, z, SIMD3<Float>(0, -1, 0)) {
-								
-								let under = corners(
-									faceKey: "down",
-									from: origin,
-									to: origin + SIMD3<Float>(1, 1, 1)
-								)
-								
-								let underShade = shade(of: "down")
-								* brightness(ofLight: lightLevel(x, y, z, SIMD3<Float>(0, -1, 0)))
-								
-								for i in [0, 3, 2, 2, 1, 0] {
-									verticesByTexture[texture, default: []].append(
-										Vertex(
-											position: under[i],
-											uv: uvs[i],
-											tint: SIMD3<Float>(1, 1, 1),
-											shade: underShade,
-											depthBias: 0
-										)
-									)
-								}
+							let under = corners(
+								faceKey: "down",
+								from: origin,
+								to: origin + SIMD3<Float>(1, 1, 1)
+							)
+							
+							let underShade = shade(of: "down")
+							* brightness(ofLight: lightLevel(x, y, z, SIMD3<Float>(0, -1, 0)))
+							
+							for i in [0, 3, 2, 2, 1, 0] {
+								emit(texture, Vertex(
+									position: under[i],
+									uv: uvs[i],
+									tint: fluidTint,
+									shade: underShade,
+									depthBias: 0
+								), translucent: isWater)
 							}
 						}
 					}
@@ -952,7 +1006,7 @@ struct ChunkMesher {
 			}
 		}
 		
-		return verticesByTexture
+		return (verticesByTexture, translucentByTexture)
 	}
 	
 	// Spins a point around a centre by whole quarter turns.

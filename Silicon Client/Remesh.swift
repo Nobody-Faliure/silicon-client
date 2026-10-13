@@ -13,6 +13,7 @@ struct SectionRenderMesh {
 	let chunkZ: Int
 	let sectionIndex: Int
 	let materials: [SectionMaterialMesh]
+	let translucentMaterials: [SectionMaterialMesh]
 	
 	// The 8 corners of this section, in world coordinates.
 	var corners: [SIMD3<Float>] {
@@ -40,7 +41,7 @@ func buildSectionRenderMesh(
 	blockStateFolder: URL,
 	clientWorld: ClientWorld
 ) -> SectionRenderMesh? {
-	let verticesByTexture = ChunkMesher.buildSectionMesh(
+	let mesh = ChunkMesher.buildSectionMesh(
 		from: chunk,
 		sectionIndex: sectionIndex,
 		modelFolder: modelFolder,
@@ -48,31 +49,35 @@ func buildSectionRenderMesh(
 		clientWorld: clientWorld
 	)
 	
-	var materials: [SectionMaterialMesh] = []
-
-	if verticesByTexture.isEmpty {
+	if mesh.opaque.isEmpty && mesh.translucent.isEmpty {
 		return nil
 	}
-	for (textureName, textureVertices) in verticesByTexture {
-		let vertexBuffer = device.makeBuffer(
-			bytes: textureVertices,
-			length: textureVertices.count * MemoryLayout<Vertex>.stride
-		)!
-		materials.append(
-			SectionMaterialMesh(
+	
+	func materials(from verticesByTexture: [String: [Vertex]]) -> [SectionMaterialMesh] {
+		var result: [SectionMaterialMesh] = []
+		
+		for (textureName, textureVertices) in verticesByTexture {
+			let vertexBuffer = device.makeBuffer(
+				bytes: textureVertices,
+				length: textureVertices.count * MemoryLayout<Vertex>.stride
+			)!
+			
+			result.append(SectionMaterialMesh(
 				textureName: textureName,
 				vertexBuffer: vertexBuffer,
 				vertexCount: textureVertices.count
-			)
-		)
+			))
+		}
+		
+		return result
 	}
 	
-
 	return SectionRenderMesh(
 		chunkX: chunk.chunkX,
 		chunkZ: chunk.chunkZ,
 		sectionIndex: sectionIndex,
-		materials: materials
+		materials: materials(from: mesh.opaque),
+		translucentMaterials: materials(from: mesh.translucent)
 	)
 }
 
@@ -83,7 +88,7 @@ func buildWorldMeshes(
 	blockStateFolder: URL
 ) -> [SectionRenderMesh] {
 	var sectionMeshes: [SectionRenderMesh] = []
-
+	
 	for chunk in clientWorld.chunks {
 		for sectionIndex in 0..<chunk.sections.count {
 			if let mesh = buildSectionRenderMesh(
@@ -98,6 +103,6 @@ func buildWorldMeshes(
 			}
 		}
 	}
-
+	
 	return sectionMeshes
 }

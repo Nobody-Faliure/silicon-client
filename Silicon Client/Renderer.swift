@@ -35,6 +35,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let depthStencilState: MTLDepthStencilState
 	let pipelineState: MTLRenderPipelineState
 	
+	let translucentPipelineState: MTLRenderPipelineState
+	let translucentDepthState: MTLDepthStencilState
+	
 	let minecraftServer = MinecraftServer()
 	let serverConnection = ServerConnection()
 	
@@ -143,6 +146,31 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		self.depthStencilState = device.makeDepthStencilState(
 			descriptor: depthDescriptor
+		)!
+		
+		// Water has to mix with whatever is already on screen, so it needs a
+		// pipeline with blending turned on. The opaque one above was already
+		// built, so reusing the descriptor is safe.
+		pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+		pipelineDescriptor.colorAttachments[0].rgbBlendOperation = .add
+		pipelineDescriptor.colorAttachments[0].alphaBlendOperation = .add
+		pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+		pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+		pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+		pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+		
+		self.translucentPipelineState = try! device.makeRenderPipelineState(
+			descriptor: pipelineDescriptor
+		)
+		
+		// Depth writes off: one water surface must not hide another behind it,
+		// or a lake loses all sense of depth.
+		let translucentDepthDescriptor = MTLDepthStencilDescriptor()
+		translucentDepthDescriptor.depthCompareFunction = .less
+		translucentDepthDescriptor.isDepthWriteEnabled = false
+		
+		self.translucentDepthState = device.makeDepthStencilState(
+			descriptor: translucentDepthDescriptor
 		)!
 		
 		// Store input
@@ -609,6 +637,36 @@ final class Renderer: NSObject, MTKViewDelegate {
 				// Send texture to fragment shader
 				renderEncoder.setFragmentTexture(
 					materialTexture,
+					index: 0
+				)
+				
+				renderEncoder.setVertexBuffer(
+					material.vertexBuffer,
+					offset: 0,
+					index: 0
+				)
+				
+				renderEncoder.drawPrimitives(
+					type: .triangle,
+					vertexStart: 0,
+					vertexCount: material.vertexCount
+				)
+			}
+		}
+		
+		// Second pass: water. Everything opaque is already on screen, so
+		// there is something behind it to blend with.
+		renderEncoder.setRenderPipelineState(translucentPipelineState)
+		renderEncoder.setDepthStencilState(translucentDepthState)
+		
+		for mesh in sectionMeshes {
+			if !isBoxOnScreen(mesh.corners, viewProjection) {
+				continue
+			}
+			
+			for material in mesh.translucentMaterials {
+				renderEncoder.setFragmentTexture(
+					texture(named: material.textureName),
 					index: 0
 				)
 				

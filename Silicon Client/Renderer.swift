@@ -356,8 +356,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 			guard let chunk = clientWorld.chunk(
 				atX: position.chunkX,
 				z: position.chunkZ
-			), let world = snapshot(around: position),
-				  world.chunks.count == 5 else { continue }
+			),
+				  clientWorld.chunk(atX: position.chunkX + 1, z: position.chunkZ) != nil,
+				  clientWorld.chunk(atX: position.chunkX - 1, z: position.chunkZ) != nil,
+				  clientWorld.chunk(atX: position.chunkX, z: position.chunkZ + 1) != nil,
+				  clientWorld.chunk(atX: position.chunkX, z: position.chunkZ - 1) != nil,
+				  let world = snapshot(around: position) else { continue }
+			
 			clientWorld.dirtySections.remove(position)
 			
 			meshQueue.async {

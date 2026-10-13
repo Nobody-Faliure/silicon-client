@@ -57,6 +57,16 @@ struct NBTReader {
 		return String(decoding: bytes, as: UTF8.self)
 	}
 	
+	mutating func readIdentifier() -> String {
+		let length = min(max(readVarInt(), 0), remaining)
+		
+		let start = data.startIndex + index
+		let bytes = data[start ..< start + length]
+		index += length
+		
+		return String(decoding: bytes, as: UTF8.self)
+	}
+	
 	mutating func readFloat() -> Float {
 		var bits: UInt32 = 0
 		for _ in 0..<4 { bits = bits << 8 | UInt32(readByte()) }

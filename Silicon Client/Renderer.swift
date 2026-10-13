@@ -8,17 +8,17 @@ struct Vertex {
 	let z: Float
 	let u: Float
 	let v: Float
-	let tintIndex: Int32
+	let tint: SIMD3<Float>
 	let shade: Float
 	let depthBias: Float
 	
-	init(position: SIMD3<Float>, uv: SIMD2<Float>, tintIndex: Int32, shade: Float, depthBias: Float) {
+	init(position: SIMD3<Float>, uv: SIMD2<Float>, tint: SIMD3<Float>, shade: Float, depthBias: Float) {
 		x = position.x
 		y = position.y
 		z = position.z
 		u = uv.x
 		v = uv.y
-		self.tintIndex = tintIndex
+		self.tint = tint
 		self.shade = shade
 		self.depthBias = depthBias
 	}
@@ -201,15 +201,16 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		Task {
 			do {
-				status.show("Downloading textures")
+				status.show("Downloading/Preparing textures")
 				let textureFolder = try await resourceDownloader.downloadAllBlockAndItemTextures()
 				ChunkMesher.textureFolder = textureFolder.appendingPathComponent("block")
+				BiomeRegistry.colormapFolder = textureFolder
 				
-				status.show("Downloading block models")
+				status.show("Downloading/Preparing block models")
 				let modelFolder = try await resourceDownloader.downloadAllModelJSONs()
 				self.modelFolder = modelFolder
 				
-				status.show("Downloading block states")
+				status.show("Downloading/Preparing block states")
 				let blockStateFolder = try await resourceDownloader.downloadAllBlockStateJSONs()
 				self.blockStateFolder = blockStateFolder
 				

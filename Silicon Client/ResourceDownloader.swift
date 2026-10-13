@@ -147,16 +147,19 @@ final class ResourceDownloader {
 		// Check every file inside the Minecraft JAR
 		for entry in archive {
 			let path = entry.path
-
+			
 			let isBlockTexture =
-				path.hasPrefix("assets/minecraft/textures/block/")
-
+			path.hasPrefix("assets/minecraft/textures/block/")
+			
 			let isItemTexture =
-				path.hasPrefix("assets/minecraft/textures/item/")
+			path.hasPrefix("assets/minecraft/textures/item/")
+			
+			let isColormap =
+			path.hasPrefix("assets/minecraft/textures/colormap/")
 
 			// Ignore everything except block/item PNGs
 			guard
-				(isBlockTexture || isItemTexture),
+				(isBlockTexture || isItemTexture || isColormap),
 				path.hasSuffix(".png") || path.hasSuffix(".mcmeta")
 			else {
 				continue

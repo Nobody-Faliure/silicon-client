@@ -4,7 +4,7 @@ using namespace metal;
 struct Vertex {
 	  packed_float3 position;
 	  packed_float2 uv;
-	  int tintIndex;
+	  float3 tint;
 	  float shade;
 	  float depthBias;
 };
@@ -12,7 +12,7 @@ struct Vertex {
 struct VertexOut {
 	float4 position [[position]];
 	float2 uv;
-	int tintIndex;
+	float3 tint;
 	float shade;
 };
 
@@ -27,16 +27,9 @@ vertex VertexOut vertexShader(
 	out.position = projectionMatrix * viewMatrix * float4(vertices[vertexID].position, 1.0);
 	out.position.z -= vertices[vertexID].depthBias * out.position.w;
 	out.uv = vertices[vertexID].uv;
-	out.tintIndex = vertices[vertexID].tintIndex;
+	out.tint = vertices[vertexID].tint;
 	out.shade = vertices[vertexID].shade;
 	return out;
-}
-
-float3 tintColour(int index) {
-	if (index < 0) {
-		return float3(1.0);              // no tint
-	}
-	return float3(0.57, 0.74, 0.35);     // plains grass, until biomes arrive
 }
 
 fragment float4 fragmentShader(
@@ -58,9 +51,9 @@ fragment float4 fragmentShader(
 		color = float4(color.r, color.r, color.r, color.a);
 	}
 	
-	color.rgb *= tintColour(in.tintIndex);
+	color.rgb *= in.tint;
 	color.rgb *= in.shade;
-
+	
 	return color;
 }
 

@@ -27,7 +27,7 @@ enum ChunkDecoder {
 			reader.index += 4                    // non-air count + the unidentified short
 			
 			let blocks = PaletteContainer(reading: &reader, entryCount: 4096)
-			_ = PaletteContainer(reading: &reader, entryCount: 64)   // biomes
+			let biome = PaletteContainer(reading: &reader, entryCount: 64)   // biomes
 			
 			
 			for i in 0..<4096 {
@@ -38,6 +38,10 @@ enum ChunkDecoder {
 				guard let state = BlockRegistry.statesByID[stateID] else { continue }
 				
 				chunk.sections[sectionIndex].blocks[i] = state
+			}
+			
+			for i in 0..<64 {
+				chunk.sections[sectionIndex].biomes[i] = biome.value(at: i)
 			}
 		}
 		

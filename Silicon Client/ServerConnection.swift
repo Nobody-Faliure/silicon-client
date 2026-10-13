@@ -135,9 +135,6 @@ final class ServerConnection {
 	private func handle(_ packet: Data) {
 		log?.append(packet)
 		
-		let hex = packet.prefix(24).map { String(format: "%02x", $0) }.joined(separator: " ")
-		print("[net] packet \(packet.count) bytes: \(hex)")
-		
 		var index = 0
 		guard let id = VarInt.read(from: packet, at: &index) else { return }
 		
@@ -145,20 +142,48 @@ final class ServerConnection {
 		case (.login, 0x02):
 			sendLoginAcknowledged()
 			protocolState = .configuration
+			
 		case (.configuration, 0x0e):
 			sendKnownPacks()
+			
+		case (.configuration, 0x07):
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()
+			let registry = reader.readIdentifier()
+			let count = reader.readVarInt()
+			
+			guard registry == "minecraft:worldgen/biome" else { break }
+			
+			var biomes: [Biome] = []
+			
+			for _ in 0..<count {
+				_ = reader.readIdentifier()                 // the name; we only need the order
+				let hasData = reader.readByte() == 1
+				let tag = hasData ? reader.readNetworkRoot() : nil
+				
+				biomes.append(tag.flatMap(BiomeRegistry.biome(from:)) ?? .unknown)
+			}
+			
+			BiomeRegistry.biomes = biomes
+			if let folder = BiomeRegistry.colormapFolder {
+				BiomeRegistry.applyColormaps(in: folder)
+			}
+			
 		case (.configuration, 0x03):
 			sendFinishConfiguration()
 			protocolState = .play
 			sendClientInformation()
+			
 		case (.play, 0x2c):
 			sendKeepAlive(packet.dropFirst(index))
+			
 		case (.play, 0x2d):
 			if let chunk = ChunkDecoder.decode(packet: packet) {
 				DispatchQueue.main.async {
 					self.onChunk?(chunk)
 				}
 			}
+			
 		case (.play, 0x48):
 			if let result = PositionDecoder.decode(packet: packet) {
 				sendConfirmTeleport(result.teleportID)
@@ -167,8 +192,10 @@ final class ServerConnection {
 					self.onPosition?(result.player)
 				}
 			}
+			
 		case (.play, 0x0b):
 			sendChunkBatchReceived(chunksPerTick: 16)
+			
 		case (.play, 0x30):
 			var reader = NBTReader(data: packet)
 			
@@ -182,6 +209,7 @@ final class ServerConnection {
 			DispatchQueue.main.async {
 				self.onLight?(chunkX, chunkZ, light.sky, light.block)
 			}
+			
 		case (.play, 0x25):
 			var reader = NBTReader(data: packet)
 			_ = reader.readVarInt()
@@ -192,6 +220,7 @@ final class ServerConnection {
 			DispatchQueue.main.async {
 				self.onForgetChunk?(chunkX, chunkZ)
 			}
+			
 		default:
 			break
 		}
@@ -312,7 +341,7 @@ final class ServerConnection {
 		VarInt.writeString("en_us", to: &payload)
 		payload.append(9)                   		// view distance, in chunks
 		VarInt.write(0, to: &payload)       		// chat mode: 0 = enabled
-		payload.append(1)                   		// chat colours: true
+		payload.append(1)                   		// chat colors: true
 		payload.append(0x7f)                		// skin parts: all shown
 		VarInt.write(1, to: &payload)				// main hand: 1 = right
 		payload.append(0)                          	// text filtering: false

@@ -21,6 +21,8 @@ struct BlockState: Hashable {
 struct Section {
 	var blocks: [BlockState]
 	
+	var biomes = [Int](repeating: 0, count: 64)
+	
 	var skyLight = Data()
 	var blockLight = Data()
 	
@@ -37,6 +39,10 @@ struct Section {
 	
 	func index(x: Int, y: Int, z: Int) -> Int {
 		return x + z * Section.width + y * Section.width * Section.depth
+	}
+	
+	func biomeID(x: Int, y: Int, z: Int) -> Int {
+		biomes[(x >> 2) + (z >> 2) * 4 + (y >> 2) * 16]
 	}
 	
 	func getBlock(x: Int, y: Int, z: Int) -> Block {

@@ -737,12 +737,31 @@ struct ChunkMesher {
 							let faceShade = shade(of: faceKey)
 							* brightness(ofLight: lightLevel(x, y, z, lightDirection))
 							
+							let faceTint: SIMD3<Float> = {
+								guard face.tintindex != nil else {
+									return SIMD3<Float>(1, 1, 1)
+								}
+								
+								let id = chunk.sections[sectionIndex]
+									.biomeID(x: x, y: y - bottomY, z: z)
+								
+								guard id < BiomeRegistry.biomes.count else {
+									return SIMD3<Float>(1, 1, 1)
+								}
+								
+								let biome = BiomeRegistry.biomes[id]
+								let isLeaves = blockState.block.id.contains("leaves")
+								
+								return (isLeaves ? biome.foliageColor : biome.grassColor)
+								?? SIMD3<Float>(1, 1, 1)
+							}()
+							
 							for i in [0, 3, 2, 2, 1, 0] {
 								verticesByTexture[texture, default: []].append(
 									Vertex(
 										position: rotate(xRot, yRot, around: center, positions[i]),
 										uv: uvs[i],
-										tintIndex: Int32(face.tintindex ?? -1),
+										tint: faceTint,
 										shade: faceShade,
 										depthBias: depthBias
 									)

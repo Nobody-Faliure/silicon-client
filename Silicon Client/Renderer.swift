@@ -740,7 +740,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			.replacingOccurrences(of: "minecraft:", with: "")
 			.replacingOccurrences(of: "block/", with: "")
 		
-		if let cached = textureCache[name] {
+		if let cached = textureCache[textureName] {
 			return cached
 		}
 		
@@ -756,7 +756,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			.appendingPathExtension("png")
 		
 		let loaded = loadMinecraftTexture(from: textureURL, named: textureName)
-		textureCache[name] = loaded
+		textureCache[textureName] = loaded
 		return loaded
 	}
 	

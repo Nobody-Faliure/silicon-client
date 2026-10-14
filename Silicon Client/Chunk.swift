@@ -19,7 +19,7 @@ struct BlockState: Hashable {
 }
 
 struct Section {
-	var blocks: [BlockState]
+	var blocks: [UInt16]
 	
 	var biomes = [Int](repeating: 0, count: 64)
 	
@@ -31,10 +31,7 @@ struct Section {
 	static let height = 16
 	
 	init() {
-		self.blocks = Array(
-			repeating: BlockState(block: Block(id: "minecraft:air"), properties: [:]),
-			count: Section.width * Section.height * Section.depth
-		)
+		self.blocks = Array(repeating: 0, count: Section.width * Section.height * Section.depth)
 	}
 	
 	func index(x: Int, y: Int, z: Int) -> Int {
@@ -46,15 +43,19 @@ struct Section {
 	}
 	
 	func getBlock(x: Int, y: Int, z: Int) -> Block {
-		return blocks[index(x: x, y: y, z: z)].block
+		return BlockRegistry.statesByID[Int(blocks[index(x: x, y: y, z: z)])].block
 	}
 	
 	func getBlockState(x: Int, y: Int, z: Int) -> BlockState {
-		return blocks[index(x: x, y: y, z: z)]
+		return BlockRegistry.statesByID[Int(blocks[index(x: x, y: y, z: z)])]
 	}
 	
-	mutating func setBlock(x: Int, y: Int, z: Int, block: BlockState) {
-		blocks[index(x: x, y: y, z: z)] = block
+	func blockID(x: Int, y: Int, z: Int) -> UInt16 {
+		blocks[index(x: x, y: y, z: z)]
+	}
+	
+	mutating func setBlock(x: Int, y: Int, z: Int, id: UInt16) {
+		blocks[index(x: x, y: y, z: z)] = id
 	}
 	
 	func lightLevel(at index: Int) -> Int {
@@ -107,8 +108,14 @@ struct Chunk {
 		return sections[location.0].getBlockState(x: x, y: location.1, z: z)
 	}
 	
-	mutating func setBlock(x: Int, y: Int, z: Int, block: BlockState) {
+	
+	func blockID(x: Int, y: Int, z: Int) -> UInt16 {
 		let location = locate(y)
-		return sections[location.0].setBlock(x: x, y: location.1, z: z, block: block)
+		return sections[location.0].blockID(x: x, y: location.1, z: z)
+	}
+	
+	mutating func setBlock(x: Int, y: Int, z: Int, id: UInt16) {
+		let location = locate(y)
+		return sections[location.0].setBlock(x: x, y: location.1, z: z, id: id)
 	}
 }

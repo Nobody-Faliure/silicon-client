@@ -14,67 +14,50 @@ extension ChunkMesher {
 		return Int((h >> 16) % UInt64(count))
 	}
 	
-	// Reads a blockstates/*.json file and picks the entry matching this
-	// block's properties.
-	//
-	// For an anvil with ["facing": "north"] it scans the four entries and
-	// returns the one keyed "facing=north" - model "anvil", spun 180.
-	//
-	// Gets the model name from the block ID
-	static func variant(
+	// The blockstate entry matching this block's properties, with all its
+	// options. nil when the file is missing or nothing matches.
+	static func variantOptions(
 		for blockState: BlockState,
-		x: Int, y: Int, z: Int,
 		blockStateFolder: URL
-	) -> MinecraftBlockStateVariant? {
-		let blockStateJSON: MinecraftBlockState
+	) -> VariantOptions? {
+		if let cached = variantCache[blockState] { return cached }
 		
-		if let cached = variantCache[blockState] {
-			return cached.options[variantIndex(x: x, y: y, z: z, count: cached.options.count)]
-		} else {
-			let blockName = blockState.block.id
-				.replacingOccurrences(of: "minecraft:", with: "")
-			
-			let blockStateURL = blockStateFolder
-				.appendingPathComponent(blockName)
-				.appendingPathExtension("json")
-			
-			guard let loaded = loadJSONIfPossible(
-				from: blockStateURL,
-				as: MinecraftBlockState.self
-			) else {
-				return nil
-			}
-			
-			blockStateJSON = loaded
+		let blockName = blockState.block.id
+			.replacingOccurrences(of: "minecraft:", with: "")
+		
+		let blockStateURL = blockStateFolder
+			.appendingPathComponent(blockName)
+			.appendingPathExtension("json")
+		
+		guard let blockStateJSON = loadJSONIfPossible(
+			from: blockStateURL,
+			as: MinecraftBlockState.self
+		) else {
+			return nil
 		}
 		
-		let properties = blockState.properties
-		let variants = blockStateJSON.variants
-		
-		// Check each entry until one matches every property we were given.
-		// A key can list several, e.g. "facing=north,lit=true", and all of
-		// them have to agree before the entry counts as a match.
-		for (variantKey, variant) in variants {
+		for (variantKey, variant) in blockStateJSON.variants {
 			var matches = true
+			
 			for property in variantKey.split(separator: ",") {
 				let parts = property.split(separator: "=", maxSplits: 1)
-				if parts.count == 2 {
-					let key = String(parts[0])
-					let value = String(parts[1])
-					
-					if properties[key] != value {
-						matches = false
-						break
-					}
+				
+				if parts.count == 2,
+				   blockState.properties[String(parts[0])] != String(parts[1]) {
+					matches = false
+					break
 				}
 			}
+			
 			if matches {
 				variantCache[blockState] = variant
-				return variant.options[variantIndex(x: x, y: y, z: z, count: variant.options.count)]
+				return variant
 			}
 		}
+		
 		return nil
 	}
+	
 	
 	// Reads a file off the disk and turns its text into Swift values.
 	//

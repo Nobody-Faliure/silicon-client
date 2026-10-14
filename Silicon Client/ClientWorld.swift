@@ -1,16 +1,16 @@
 import Foundation
 
 struct SectionPosition: Hashable {
-	  let chunkX: Int
-	  let chunkZ: Int
-	  let sectionIndex: Int
+	let chunkX: Int
+	let chunkZ: Int
+	let sectionIndex: Int
 }
 
 final class ClientWorld {
 	var chunks: [Chunk] = []
 	
 	var dirtySections: Set<SectionPosition> = []
-
+	
 	init() {
 	}
 	
@@ -22,24 +22,36 @@ final class ClientWorld {
 		guard y >= Chunk.minY, y < Chunk.minY + Chunk.sectionCount * Section.height else {
 			return nil
 		}
-
+		
 		guard let chunk = chunk(atX: worldX >> 4, z: worldZ >> 4) else {
 			return nil
 		}
-
+		
 		return chunk.getBlockState(x: worldX & 15, y: y, z: worldZ & 15)
+	}
+	
+	func blockID(worldX: Int, y: Int, worldZ: Int) -> UInt16? {
+		guard y >= Chunk.minY, y < Chunk.minY + Chunk.sectionCount * Section.height else {
+			return nil
+		}
+		
+		guard let chunk = chunk(atX: worldX >> 4, z: worldZ >> 4) else {
+			return nil
+		}
+		
+		return chunk.blockID(x: worldX & 15, y: y, z: worldZ & 15)
 	}
 	
 	func receiveChunk(_ newChunk: Chunk) {
 		for i in 0..<chunks.count {
 			if chunks[i].chunkX == newChunk.chunkX &&
 				chunks[i].chunkZ == newChunk.chunkZ {
-
+				
 				chunks[i] = newChunk
 				return
 			}
 		}
-
+		
 		chunks.append(newChunk)
 	}
 	
@@ -49,25 +61,25 @@ final class ClientWorld {
 		x: Int,
 		y: Int,
 		z: Int,
-		block: BlockState
+		id: UInt16
 	) {
 		for i in 0..<chunks.count {
 			if chunks[i].chunkX == chunkX &&
 				chunks[i].chunkZ == chunkZ {
-
+				
 				chunks[i].setBlock(
 					x: x,
 					y: y,
 					z: z,
-					block: block
+					id: id
 				)
 				
 				dirtySections.insert(SectionPosition(
-						chunkX: chunkX,
-						chunkZ: chunkZ,
-						sectionIndex: chunks[i].locate(y).section
+					chunkX: chunkX,
+					chunkZ: chunkZ,
+					sectionIndex: chunks[i].locate(y).section
 				))
-
+				
 				return
 			}
 		}

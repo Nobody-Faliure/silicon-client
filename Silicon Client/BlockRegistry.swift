@@ -12,7 +12,7 @@ struct BlockReportState: Decodable {
 }
 
 enum BlockRegistry {
-	static var statesByID: [Int: BlockState] = [:]
+	static var statesByID: [BlockState] = []
 	
 	static func reportURL(version: String) -> URL {
 		FileManager.default.urls(
@@ -37,6 +37,11 @@ enum BlockRegistry {
 			return
 		}
 		
+		// IDs run 0...max with no gaps, so an array indexed by ID works.
+		let maxID = report.values.flatMap { $0.states }.map(\.id).max() ?? 0
+		let air = BlockState(block: Block(id: "minecraft:air"), properties: [:])
+		statesByID = Array(repeating: air, count: maxID + 1)
+		
 		for (name, entry) in report {
 			for state in entry.states {
 				statesByID[state.id] = BlockState(
@@ -45,5 +50,6 @@ enum BlockRegistry {
 				)
 			}
 		}
+
 	}
 }

@@ -35,9 +35,9 @@ enum ChunkDecoder {
 				
 				guard stateID != 0 else { continue }
 				
-				guard let state = BlockRegistry.statesByID[stateID] else { continue }
+				guard stateID < BlockRegistry.statesByID.count else { continue }
 				
-				chunk.sections[sectionIndex].blocks[i] = state
+				chunk.sections[sectionIndex].blocks[i] = UInt16(stateID)
 			}
 			
 			for i in 0..<64 {

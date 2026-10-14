@@ -97,25 +97,6 @@ struct ChunkMesher {
 		return false
 	}
 	
-	static var hidesCache: [BlockState: Bool] = [:]
-	
-	static func neighbourHides(
-		_ blockState: BlockState,
-		blockStateFolder: URL,
-		modelFolder: URL
-	) -> Bool {
-		if let hit = hidesCache[blockState] { return hit }
-		
-		guard let v = variant(for: blockState, x: 0, y: 0, z: 0, blockStateFolder: blockStateFolder) else {
-			hidesCache[blockState] = false
-			return false
-		}
-		let value = hidesNeighbours(resolvedModel(modelName: v.model, modelFolder: modelFolder))
-		
-		hidesCache[blockState] = value
-		return value
-	}
-	
 	// Walks every block in the chunk and produces the triangles for it.
 	//
 	// The returned dictionary is grouped by picture name because the
@@ -169,13 +150,23 @@ struct ChunkMesher {
 				return true        // not loaded - don't the face
 			}
 			
-			let neighbour = neighbourChunk.getBlockState(x: nx & 15, y: ny, z: nz & 15)
+			let neighbour = neighbourChunk.blockID(x: nx & 15, y: ny, z: nz & 15)
+			let info = BlockInfoTable.info(neighbour, blockStateFolder: blockStateFolder, modelFolder: modelFolder)
 			
-			if neighbour.block == air {
+			if info.isAir {
 				return false
 			}
 			
-			return neighbourHides(neighbour, blockStateFolder: blockStateFolder, modelFolder: modelFolder)
+			return info.hidesNeighbours
+		}
+		
+		// Whether this ID is the same kind of fluid. Compares water against
+		// lava rather than exact IDs: still and flowing water are different
+		// IDs but must still join up.
+		func isSameFluid(_ id: UInt16?, water: Bool) -> Bool {
+			guard let id else { return false }
+			let other = BlockInfoTable.info(id, blockStateFolder: blockStateFolder, modelFolder: modelFolder)
+			return other.fluidHeight != nil && other.isWater == water
 		}
 		
 		// The light level, 0 to 15, of the block this face points at. Light
@@ -209,18 +200,20 @@ struct ChunkMesher {
 			for z in 0..<Section.depth {
 				for x in 0..<Section.width {
 					
-					let blockState = chunk.getBlockState(x: x, y: y, z: z)
+					let blockID = chunk.blockID(x: x, y: y, z: z)
+					let info = BlockInfoTable.info(blockID, blockStateFolder: blockStateFolder, modelFolder: modelFolder)
 					
-					if blockState.block == air {
+					if info.isAir {
 						continue
 					}
 					
-					// Two separate lookups: the spin comes from the blockstate
-					// entry, the shape from the model files. Both read the
-					// disk, and both repeat for every block in the chunk.
-					guard let v = variant(for: blockState, x: x, y: y, z: z, blockStateFolder: blockStateFolder) else {
+					guard let options = info.variants?.options else {
 						continue
 					}
+					
+					let v = options[variantIndex(x: x, y: y, z: z, count: options.count)]
+					
+					// Still used further down; removed once those switch to info.
 					
 					let xRot = v.x ?? 0
 					let yRot = v.y ?? 0
@@ -246,7 +239,7 @@ struct ChunkMesher {
 					func cornerHeight(
 						_ x: Int, _ y: Int, _ z: Int,
 						_ dx: Int, _ dz: Int,
-						_ id: String
+						_ water: Bool
 					) -> Float {
 						var total: Float = 0
 						var count: Float = 0
@@ -256,14 +249,14 @@ struct ChunkMesher {
 								let wx = x + chunk.chunkX * Section.width + ox
 								let wz = z + chunk.chunkZ * Section.depth + oz
 								
-								if let above = clientWorld.getBlockState(worldX: wx, y: y + 1, worldZ: wz),
-								   above.block.id == id {
+								if isSameFluid(clientWorld.blockID(worldX: wx, y: y + 1, worldZ: wz), water: water) {
 									return 1
 								}
 								
-								guard let state = clientWorld.getBlockState(worldX: wx, y: y, worldZ: wz),
-									  state.block.id == id,
-									  let height = fluidHeight(of: state) else { continue }
+								guard let column = clientWorld.blockID(worldX: wx, y: y, worldZ: wz),
+									  isSameFluid(column, water: water),
+									  let height = BlockInfoTable.info(column, blockStateFolder: blockStateFolder, modelFolder: modelFolder).fluidHeight
+										else { continue }
 								
 								total += height
 								count += 1
@@ -275,19 +268,17 @@ struct ChunkMesher {
 					
 					// Fluids have no model, so their surface is built here
 					// instead of from elements.
-					if fluidHeight(of: blockState) != nil {
-						let id = blockState.block.id
+					if info.fluidHeight != nil {
 						let wx = x + chunk.chunkX * Section.width
 						let wz = z + chunk.chunkZ * Section.depth
 						
 						// More of the same fluid directly above means this
 						// block is inside a body of water, not at its surface.
-						let coveredAbove = clientWorld.getBlockState(
-							worldX: wx, y: y + 1, worldZ: wz
-						)?.block.id == id
+						let coveredAbove = isSameFluid(clientWorld.blockID(worldX: wx, y: y + 1, worldZ: wz),
+													   water: info.isWater)
 						
 						let fluidTint: SIMD3<Float> = {
-							guard id == "minecraft:water" else {
+							guard info.isWater else {
 								return SIMD3<Float>(1, 1, 1)
 							}
 							
@@ -302,13 +293,13 @@ struct ChunkMesher {
 							?? SIMD3<Float>(1, 1, 1)
 						}()
 						
-						let isWater = id == "minecraft:water"
+						let isWater = info.isWater
 						
 						let h = [
-							cornerHeight(x, y, z, 0, 0, id),
-							cornerHeight(x, y, z, 1, 0, id),
-							cornerHeight(x, y, z, 1, 1, id),
-							cornerHeight(x, y, z, 0, 1, id)
+							cornerHeight(x, y, z, 0, 0, info.isWater),
+							cornerHeight(x, y, z, 1, 0, info.isWater),
+							cornerHeight(x, y, z, 1, 1, info.isWater),
+							cornerHeight(x, y, z, 0, 1, info.isWater)
 						]
 						
 						// Comparing the two sides of the block gives the slope.
@@ -379,11 +370,11 @@ struct ChunkMesher {
 						] {
 							let dir = direction(of: faceKey)
 							
-							if clientWorld.getBlockState(
+							if isSameFluid(clientWorld.blockID(
 								worldX: wx + Int(dir.x),
 								y: y,
 								worldZ: wz + Int(dir.z)
-							)?.block.id == id { continue }
+							), water: info.isWater) { continue }
 							
 							if hidden(x, y, z, dir) { continue }
 							
@@ -419,8 +410,7 @@ struct ChunkMesher {
 						
 						// The underside. Flat, full size — a fluid's botctom is
 						// never sloped, however the top behaves.
-						if clientWorld.getBlockState(worldX: wx, y: y - 1, worldZ: wz)?
-							.block.id != id,
+						if !isSameFluid(clientWorld.blockID(worldX: wx, y: y - 1, worldZ: wz), water: info.isWater),
 						   !hidden(x, y, z, SIMD3<Float>(0, -1, 0)) {
 							
 							let under = corners(
@@ -534,7 +524,7 @@ struct ChunkMesher {
 								}
 								
 								let biome = BiomeRegistry.biomes[id]
-								let isLeaves = blockState.block.id.contains("leaves")
+								let isLeaves = info.isLeaves
 								
 								return (isLeaves ? biome.foliageColor : biome.grassColor)
 								?? SIMD3<Float>(1, 1, 1)

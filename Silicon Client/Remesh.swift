@@ -6,14 +6,15 @@ struct SectionMaterialMesh {
 	let textureName: String
 	let vertexBuffer: MTLBuffer
 	let vertexCount: Int
+	var texture: MTLTexture? = nil
 }
 
 struct SectionRenderMesh {
 	let chunkX: Int
 	let chunkZ: Int
 	let sectionIndex: Int
-	let materials: [SectionMaterialMesh]
-	let translucentMaterials: [SectionMaterialMesh]
+	var materials: [SectionMaterialMesh]
+	var translucentMaterials: [SectionMaterialMesh]
 	
 	// The 8 corners of this section, in world coordinates.
 	var corners: [SIMD3<Float>] {

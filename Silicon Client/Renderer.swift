@@ -388,7 +388,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 						&& $0.sectionIndex == position.sectionIndex
 					}
 					
-					if let mesh {
+					if var mesh {
+						for i in mesh.materials.indices {
+							mesh.materials[i].texture = self.texture(named: mesh.materials[i].textureName)
+						}
+						for i in mesh.translucentMaterials.indices {
+							mesh.translucentMaterials[i].texture = self.texture(named: mesh.translucentMaterials[i].textureName)
+						}
 						self.sectionMeshes.append(mesh)
 					}
 				}
@@ -613,7 +619,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			)
 			
 			for material in mesh.materials {
-				let materialTexture = texture(named: material.textureName)
+				let materialTexture = material.texture
 				
 				// Send texture to fragment shader
 				renderEncoder.setFragmentTexture(
@@ -647,7 +653,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			
 			for material in mesh.translucentMaterials {
 				renderEncoder.setFragmentTexture(
-					texture(named: material.textureName),
+					material.texture,
 					index: 0
 				)
 				

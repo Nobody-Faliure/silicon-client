@@ -303,9 +303,9 @@ final class ServerConnection {
 		
 		VarInt.write(0x1f, to: &payload)
 		
-		VarInt.writeDouble(player.x, to: &payload)
-		VarInt.writeDouble(player.y, to: &payload)
-		VarInt.writeDouble(player.z, to: &payload)
+		VarInt.writeDouble(player.position.x, to: &payload)
+		VarInt.writeDouble(player.position.y, to: &payload)
+		VarInt.writeDouble(player.position.z, to: &payload)
 		
 		VarInt.writeFloat(player.yaw, to: &payload)
 		VarInt.writeFloat(player.pitch, to: &payload)

@@ -56,6 +56,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	private var lastFrameTime: CFTimeInterval?
 	
+	// Time that has passed but not yet been turned into ticks. 20 ticks a second.
+	private var unspentTickTime: Double = 0
+	static let tickLength: Double = 0.05
+	
 	private var player = Player()
 	
 	static let eyeHeight: Float = 1.62
@@ -303,9 +307,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		lastReadingUpdate = now
 		
-		debug.x = player.x
-		debug.y = player.y
-		debug.z = player.z
+		debug.x = player.position.x
+		debug.y = player.position.y
+		debug.z = player.position.z
 		debug.facing = Renderer.facingName(yaw: player.yaw, pitch: player.pitch)
 		debug.yaw = Renderer.yawDegrees(player.yaw)
 		debug.pitch = Double(player.pitch * 180 / .pi)
@@ -444,12 +448,28 @@ final class Renderer: NSObject, MTKViewDelegate {
 	}
 	
 	private var standingOnLoadedChunk: Bool {
-		let chunkX = Int(player.x.rounded(.down)) >> 4
-		let chunkZ = Int(player.z.rounded(.down)) >> 4
+		let chunkX = Int(player.position.x.rounded(.down)) >> 4
+		let chunkZ = Int(player.position.z.rounded(.down)) >> 4
 		
 		return sectionMeshes.contains {
 			$0.chunkX == chunkX && $0.chunkZ == chunkZ
 		}
+	}
+	
+	// One game tick: move the player, then tell the server where we are.
+	private func tick() {
+		player.previousTickPosition = player.position
+		
+		player.spectatorFly(input: input, deltaTime: Renderer.tickLength)
+		
+		guard hasSpawned else { return }
+		
+		var player = self.player
+		player.yaw = -player.yaw * 180 / .pi
+		player.pitch = player.pitch * 180 / .pi
+		
+		serverConnection.sendPlayerPosition(player, onGround: false)
+		serverConnection.sendClientTickEnd()
 	}
 	
 	// Called repeatedly by MTKView to draw each frame
@@ -470,7 +490,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 			status.ready()
 		}
 		
-		player.spectatorFly(input: input, deltaTime: deltaTime)
+		unspentTickTime += deltaTime
+		while unspentTickTime >= Renderer.tickLength {
+			unspentTickTime -= Renderer.tickLength
+			tick()
+		}
 		
 		updateDebug(now: now, deltaTime: deltaTime)
 		
@@ -487,10 +511,14 @@ final class Renderer: NSObject, MTKViewDelegate {
 			serverConnection.sendClientTickEnd()
 		}
 		
+		let blend = unspentTickTime / Renderer.tickLength
+		let current = player.position
+		let smooth = player.previousTickPosition + (current - player.previousTickPosition) * blend
+		
 		cameraPosition = SIMD3<Float>(
-			Float(player.x),
-			Float(player.y) + Renderer.eyeHeight,
-			Float(player.z)
+			Float(smooth.x),
+			Float(smooth.y) + Renderer.eyeHeight,
+			Float(smooth.z)
 		)
 		
 		guard let renderPassDescriptor =

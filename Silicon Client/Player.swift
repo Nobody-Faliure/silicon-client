@@ -1,14 +1,15 @@
 import Foundation
 
 struct Player {
-	var x: Double = 0
-	var y: Double = 0
-	var z: Double = 0
+	var position = SIMD3<Double>(0, 0, 0)
 	
 	var yaw: Float = 0
 	var pitch: Float = 0
 	
 	static let spectatorFlySpeed: Double = 10.9
+	
+	// Where the player was one tick ago. The camera slides from here to now.
+	var previousTickPosition = SIMD3<Double>(0, 0, 0)
 	
 	mutating func spectatorFly(input: Input, deltaTime: Double) {
 		if input.scrollDelta != 0 {
@@ -21,12 +22,12 @@ struct Player {
 		let sinYaw = Double(sin(yaw))
 		let cosYaw = Double(cos(yaw))
 		
-		if input.wPressed     { x += sinYaw * distance; z += cosYaw * distance }
-		if input.sPressed     { x -= sinYaw * distance; z -= cosYaw * distance }
-		if input.aPressed     { x -= cosYaw * distance; z += sinYaw * distance }
-		if input.dPressed     { x += cosYaw * distance; z -= sinYaw * distance }
-		if input.spacePressed { y += distance }
-		if input.shiftPressed { y -= distance }
+		if input.wPressed     { position.x += sinYaw * distance; position.z += cosYaw * distance }
+		if input.sPressed     { position.x -= sinYaw * distance; position.z -= cosYaw * distance }
+		if input.aPressed     { position.x -= cosYaw * distance; position.z += sinYaw * distance }
+		if input.dPressed     { position.x += cosYaw * distance; position.z -= sinYaw * distance }
+		if input.spacePressed { position.y += distance }
+		if input.shiftPressed { position.y -= distance }
 	}
 	
 	mutating func updateLookDirection(input: Input) {
@@ -55,9 +56,11 @@ enum PositionDecoder {
 		
 		var player = Player()
 		
-		player.x = reader.readDouble()
-		player.y = reader.readDouble()
-		player.z = reader.readDouble()
+		player.position.x = reader.readDouble()
+		player.position.y = reader.readDouble()
+		player.position.z = reader.readDouble()
+		
+		player.previousTickPosition = player.position
 		
 		reader.index += 24          // velocity x, y, z — unused
 		

@@ -196,6 +196,13 @@ struct ChunkMesher {
 		
 		// Visit every position in the section, one block at a time.
 		let bottomY = -64 + sectionIndex * Section.height
+		
+		let sectionOrigin = SIMD3<Float>(
+			Float(chunk.chunkX * Section.width),
+			Float(bottomY),
+			Float(chunk.chunkZ * Section.depth)
+		)
+		
 		for y in bottomY..<bottomY + Section.height {
 			for z in 0..<Section.depth {
 				for x in 0..<Section.width {
@@ -354,6 +361,7 @@ struct ChunkMesher {
 							for i in [0, 3, 2, 2, 1, 0] {
 								emit(topTexture, Vertex(
 									position: positions[i],
+									origin: sectionOrigin,
 									uv: topUVs[i],
 									tint: fluidTint,
 									shade: faceShade,
@@ -400,6 +408,7 @@ struct ChunkMesher {
 							for i in [0, 3, 2, 2, 1, 0] {
 								emit(texture, Vertex(
 									position: side[i],
+									origin: sectionOrigin,
 									uv: sideUVs[i],
 									tint: fluidTint,
 									shade: sideShade,
@@ -423,9 +432,10 @@ struct ChunkMesher {
 							* brightness(ofLight: lightLevel(x, y, z, SIMD3<Float>(0, -1, 0)))
 							
 							for i in [0, 3, 2, 2, 1, 0] {
-								emit(texture, Vertex(
-									position: under[i],
-									uv: uvs[i],
+								emit(topTexture, Vertex(
+									position: positions[i],
+									origin: sectionOrigin,
+									uv: topUVs[i],
 									tint: fluidTint,
 									shade: underShade,
 									depthBias: 0
@@ -534,6 +544,7 @@ struct ChunkMesher {
 								verticesByTexture[texture, default: []].append(
 									Vertex(
 										position: rotate(xRot, yRot, around: center, positions[i]),
+										origin: sectionOrigin,
 										uv: uvs[i],
 										tint: faceTint,
 										shade: faceShade,

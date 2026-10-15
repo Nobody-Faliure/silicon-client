@@ -3,24 +3,25 @@ import MetalKit
 import ImageIO
 
 struct Vertex {
-	let x: Float
-	let y: Float
-	let z: Float
-	let u: Float
-	let v: Float
-	let tint: SIMD3<Float>
-	let shade: Float
-	let depthBias: Float
+	let px, py, pz: Int16      // position inside the section, in 1/256 of a block
+	let flags: Int16           // 1 = grass overlay, gets the depth nudge
+	let u, v: UInt16           // 0...65535 means 0...1 across the texture
+	let r, g, b: UInt8         // biome tint, 0...255
+	let shade: UInt8           // face brightness, 0...255
 	
-	init(position: SIMD3<Float>, uv: SIMD2<Float>, tint: SIMD3<Float>, shade: Float, depthBias: Float) {
-		x = position.x
-		y = position.y
-		z = position.z
-		u = uv.x
-		v = uv.y
-		self.tint = tint
-		self.shade = shade
-		self.depthBias = depthBias
+	init(position: SIMD3<Float>, origin: SIMD3<Float>, uv: SIMD2<Float>,
+		 tint: SIMD3<Float>, shade: Float, depthBias: Float) {
+		let local = (position - origin) * 256
+		px = Int16(local.x.rounded())
+		py = Int16(local.y.rounded())
+		pz = Int16(local.z.rounded())
+		flags = depthBias > 0 ? 1 : 0
+		u = UInt16((min(max(uv.x, 0), 1) * 65535).rounded())
+		v = UInt16((min(max(uv.y, 0), 1) * 65535).rounded())
+		r = UInt8((min(max(tint.x, 0), 1) * 255).rounded())
+		g = UInt8((min(max(tint.y, 0), 1) * 255).rounded())
+		b = UInt8((min(max(tint.z, 0), 1) * 255).rounded())
+		self.shade = UInt8((min(max(shade, 0), 1) * 255).rounded())
 	}
 }
 
@@ -599,6 +600,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 			if !isBoxOnScreen(mesh.corners, viewProjection) {
 				continue
 			}
+			
+			var origin: [Float] = [
+				Float(mesh.chunkX * Section.width),
+				Float(-64 + mesh.sectionIndex * Section.height),
+				Float(mesh.chunkZ * Section.depth)
+			]
+			renderEncoder.setVertexBytes(
+				&origin,
+				length: 3 * MemoryLayout<Float>.stride,
+				index: 3
+			)
 			
 			for material in mesh.materials {
 				let materialTexture = texture(named: material.textureName)

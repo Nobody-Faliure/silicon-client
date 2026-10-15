@@ -70,7 +70,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private var hasSpawned = false
 	
 	private var hasSentPlayerLoaded = false
-	private var lastPositionSend: CFTimeInterval = 0
+	
 	// Readings — position, counts — refresh four times a second, which is
 	// fast enough to follow while flying.
 	private var lastReadingUpdate: CFTimeInterval = 0
@@ -499,17 +499,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 		updateDebug(now: now, deltaTime: deltaTime)
 		
 		advanceAnimations(now: now)
-		
-		if hasSpawned, now - lastPositionSend >= 0.05 {
-			lastPositionSend = now
-			
-			var player = self.player
-			player.yaw = -player.yaw * 180 / .pi
-			player.pitch = player.pitch * 180 / .pi
-			
-			serverConnection.sendPlayerPosition(player, onGround: false)
-			serverConnection.sendClientTickEnd()
-		}
 		
 		let blend = unspentTickTime / Renderer.tickLength
 		let current = player.position

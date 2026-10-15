@@ -7,6 +7,18 @@ final class ResourceDownloader {
 	// Minecraft version this downloader looks for
 	let minecraftVersion = "26.2"
 	
+	// A folder counts as done only if a past run reached the end and left this file.
+	// Named after the version, so a new version downloads again.
+	func isFinished(_ folder: URL) -> Bool {
+		FileManager.default.fileExists(
+			atPath: folder.appendingPathComponent(".done-\(minecraftVersion)").path
+		)
+	}
+	
+	func markFinished(_ folder: URL) throws {
+		try Data().write(to: folder.appendingPathComponent(".done-\(minecraftVersion)"))
+	}
+	
 	// Mojang's list of all Minecraft versions
 	let versionManifestURL = URL(
 		string: "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
@@ -22,7 +34,7 @@ final class ResourceDownloader {
 	struct VersionManifest: Decodable {
 		let versions: [MinecraftVersion]
 	}
-
+	
 	// One Minecraft version inside the manifest
 	struct MinecraftVersion: Decodable {
 		let id: String
@@ -56,12 +68,12 @@ final class ResourceDownloader {
 	struct VersionMetadata: Decodable {
 		let downloads: Downloads
 	}
-
+	
 	struct Downloads: Decodable {
 		let client: ClientDownload
 		let server: ClientDownload
 	}
-
+	
 	// Contains the URL of the official client JAR
 	struct ClientDownload: Decodable {
 		let url: URL
@@ -98,52 +110,55 @@ final class ResourceDownloader {
 			.appendingPathComponent("Silicon Client")
 			.appendingPathComponent("Versions")
 			.appendingPathComponent(minecraftVersion)
-
+		
 		try FileManager.default.createDirectory(
 			at: folder,
 			withIntermediateDirectories: true
 		)
-
+		
 		let jarURL = folder.appendingPathComponent("server.jar")
 		try data.write(to: jarURL)
-
+		
 		return jarURL
 	}
 	
 	// Downloads the JAR and extracts all block/item textures
 	func downloadAllBlockAndItemTextures() async throws -> URL {
-		
-		// Find Minecraft 26.2
-		let manifestData = try await fetchVersionManifest()
-		let manifest = try decodeVersionManifest(from: manifestData)
-
-		guard let version = findMinecraftVersion(in: manifest) else {
-			throw NSError(domain: "TextureDownloader", code: 10)
-		}
-
-		// Get the client JAR download URL
-		let metadataData = try await fetchVersionMetadata(for: version)
-		let metadata = try decodeVersionMetadata(from: metadataData)
-
-		// Download and open the JAR as a ZIP archive
-		let jarData = try await fetchClientJar(from: metadata)
-		let jarURL = try saveClientJar(jarData)
-
-		let archive = try Archive(url: jarURL, accessMode: .read)
-
 		// Permanent folder where Silicon Client stores textures
 		let textureFolder = FileManager.default.urls(
 			for: .applicationSupportDirectory,
 			in: .userDomainMask
 		)[0]
-		.appendingPathComponent("Silicon Client")
-		.appendingPathComponent("assets/minecraft/textures")
-
+			.appendingPathComponent("Silicon Client")
+			.appendingPathComponent("assets/minecraft/textures")
+		
+		if isFinished(textureFolder) {
+			return textureFolder
+		}
+		
+		// Find Minecraft 26.2
+		let manifestData = try await fetchVersionManifest()
+		let manifest = try decodeVersionManifest(from: manifestData)
+		
+		guard let version = findMinecraftVersion(in: manifest) else {
+			throw NSError(domain: "TextureDownloader", code: 10)
+		}
+		
+		// Get the client JAR download URL
+		let metadataData = try await fetchVersionMetadata(for: version)
+		let metadata = try decodeVersionMetadata(from: metadataData)
+		
+		// Download and open the JAR as a ZIP archive
+		let jarData = try await fetchClientJar(from: metadata)
+		let jarURL = try saveClientJar(jarData)
+		
+		let archive = try Archive(url: jarURL, accessMode: .read)
+		
 		try FileManager.default.createDirectory(
 			at: textureFolder,
 			withIntermediateDirectories: true
 		)
-
+		
 		// Check every file inside the Minecraft JAR
 		for entry in archive {
 			let path = entry.path
@@ -156,15 +171,15 @@ final class ResourceDownloader {
 			
 			let isColormap =
 			path.hasPrefix("assets/minecraft/textures/colormap/")
-
+			
 			// Ignore everything except block/item PNGs
 			guard
 				(isBlockTexture || isItemTexture || isColormap),
 				path.hasSuffix(".png") || path.hasSuffix(".mcmeta")
-			else {
+					else {
 				continue
 			}
-
+			
 			// Remove the part of the JAR path we don't need
 			// Example:
 			// assets/minecraft/textures/block/stone.png
@@ -173,41 +188,41 @@ final class ResourceDownloader {
 				of: "assets/minecraft/textures/",
 				with: ""
 			)
-
+			
 			// Final location for this texture
 			let destinationURL =
-				textureFolder.appendingPathComponent(relativePath)
-
+			textureFolder.appendingPathComponent(relativePath)
+			
 			let destinationFolder =
-				destinationURL.deletingLastPathComponent()
+			destinationURL.deletingLastPathComponent()
 			
 			// If it already exists don't redownload it
 			if FileManager.default.fileExists(atPath: destinationURL.path) {
 				continue
 			}
-
+			
 			// Make folders such as block/ and item/ if needed
 			try FileManager.default.createDirectory(
 				at: destinationFolder,
 				withIntermediateDirectories: true
 			)
-
+			
 			// Extract the texture bytes from the JAR
 			var textureData = Data()
-
+			
 			_ = try archive.extract(entry) { chunk in
 				textureData.append(chunk)
 			}
-
+			
 			// Re-encode the PNG through AppKit.
 			// This avoids the image decoding issue we had with some textures.
 			// .mcmeta is JSON, not a picture. Re-encoding would destroy it.
 			if path.hasSuffix(".mcmeta") {
 				try textureData.write(to: destinationURL)
 			} else if let image = NSImage(data: textureData),
-			   let tiffData = image.tiffRepresentation,
-			   let bitmap = NSBitmapImageRep(data: tiffData),
-			   let pngData = bitmap.representation(using: .png, properties: [:]) {
+					  let tiffData = image.tiffRepresentation,
+					  let bitmap = NSBitmapImageRep(data: tiffData),
+					  let pngData = bitmap.representation(using: .png, properties: [:]) {
 				
 				try pngData.write(to: destinationURL)
 				
@@ -217,12 +232,24 @@ final class ResourceDownloader {
 				try textureData.write(to: destinationURL)
 			}
 		}
-
+		
+		try markFinished(textureFolder)
 		return textureFolder
 	}
 	
 	// Downloads the JAR and extracts all model JSON files
 	func downloadAllModelJSONs() async throws -> URL {
+		// Permanent folder for model JSONs
+		let modelFolder = FileManager.default.urls(
+			for: .applicationSupportDirectory,
+			in: .userDomainMask
+		)[0]
+			.appendingPathComponent("Silicon Client")
+			.appendingPathComponent("assets/minecraft/models")
+		
+		if isFinished(modelFolder) {
+			return modelFolder
+		}
 		
 		let manifestData = try await fetchVersionManifest()
 		let manifest = try decodeVersionManifest(from: manifestData)
@@ -238,14 +265,6 @@ final class ResourceDownloader {
 		let jarURL = try saveClientJar(jarData)
 		let archive = try Archive(url: jarURL, accessMode: .read)
 		
-		// Permanent folder for model JSONs
-		let modelFolder = FileManager.default.urls(
-			for: .applicationSupportDirectory,
-			in: .userDomainMask
-		)[0]
-		.appendingPathComponent("Silicon Client")
-		.appendingPathComponent("assets/minecraft/models")
-		
 		try FileManager.default.createDirectory(
 			at: modelFolder,
 			withIntermediateDirectories: true
@@ -259,7 +278,7 @@ final class ResourceDownloader {
 			guard
 				path.hasPrefix("assets/minecraft/models/"),
 				path.hasSuffix(".json")
-			else {
+					else {
 				continue
 			}
 			
@@ -271,10 +290,10 @@ final class ResourceDownloader {
 			)
 			
 			let destinationURL =
-				modelFolder.appendingPathComponent(relativePath)
+			modelFolder.appendingPathComponent(relativePath)
 			
 			let destinationFolder =
-				destinationURL.deletingLastPathComponent()
+			destinationURL.deletingLastPathComponent()
 			
 			try FileManager.default.createDirectory(
 				at: destinationFolder,
@@ -291,11 +310,23 @@ final class ResourceDownloader {
 			try modelData.write(to: destinationURL)
 		}
 		
+		try markFinished(modelFolder)
 		return modelFolder
 	}
 	
 	// Downloads the JAR and extracts all blockstate JSON files
 	func downloadAllBlockStateJSONs() async throws -> URL {
+		// Permanent folder for blockstate JSONs
+		let blockStateFolder = FileManager.default.urls(
+			for: .applicationSupportDirectory,
+			in: .userDomainMask
+		)[0]
+			.appendingPathComponent("Silicon Client")
+			.appendingPathComponent("assets/minecraft/blockstates")
+		
+		if (isFinished(blockStateFolder)) {
+			return blockStateFolder
+		}
 		
 		let manifestData = try await fetchVersionManifest()
 		let manifest = try decodeVersionManifest(from: manifestData)
@@ -311,14 +342,6 @@ final class ResourceDownloader {
 		let jarURL = try saveClientJar(jarData)
 		let archive = try Archive(url: jarURL, accessMode: .read)
 		
-		// Permanent folder for blockstate JSONs
-		let blockStateFolder = FileManager.default.urls(
-			for: .applicationSupportDirectory,
-			in: .userDomainMask
-		)[0]
-		.appendingPathComponent("Silicon Client")
-		.appendingPathComponent("assets/minecraft/blockstates")
-		
 		try FileManager.default.createDirectory(
 			at: blockStateFolder,
 			withIntermediateDirectories: true
@@ -332,7 +355,7 @@ final class ResourceDownloader {
 			guard
 				path.hasPrefix("assets/minecraft/blockstates/"),
 				path.hasSuffix(".json")
-			else {
+					else {
 				continue
 			}
 			
@@ -345,7 +368,7 @@ final class ResourceDownloader {
 			)
 			
 			let destinationURL =
-				blockStateFolder.appendingPathComponent(relativePath)
+			blockStateFolder.appendingPathComponent(relativePath)
 			
 			// Extract the JSON bytes
 			var blockStateData = Data()
@@ -357,6 +380,7 @@ final class ResourceDownloader {
 			try blockStateData.write(to: destinationURL)
 		}
 		
+		try markFinished(blockStateFolder)
 		return blockStateFolder
 	}
 	
@@ -370,24 +394,24 @@ final class ResourceDownloader {
 			.appendingPathComponent("Versions")
 			.appendingPathComponent(minecraftVersion)
 			.appendingPathComponent("server.jar")
-
+		
 		if FileManager.default.fileExists(atPath: existing.path) {
 			print("Server JAR already downloaded")
 			return existing
 		}
-
+		
 		let manifestData = try await fetchVersionManifest()
 		let manifest = try decodeVersionManifest(from: manifestData)
-
+		
 		guard let version = findMinecraftVersion(in: manifest) else {
 			throw NSError(domain: "ResourceDownloader", code: 40)
 		}
-
+		
 		let metadataData = try await fetchVersionMetadata(for: version)
 		let metadata = try decodeVersionMetadata(from: metadataData)
 		
 		let jarData = try await fetchServerJar(from: metadata)
-
+		
 		return try saveServerJar(jarData)
 	}
 }

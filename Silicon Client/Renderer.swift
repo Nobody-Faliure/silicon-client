@@ -651,6 +651,17 @@ final class Renderer: NSObject, MTKViewDelegate {
 				continue
 			}
 			
+			var origin: [Float] = [
+				Float(mesh.chunkX * Section.width),
+				Float(-64 + mesh.sectionIndex * Section.height),
+				Float(mesh.chunkZ * Section.depth)
+			]
+			renderEncoder.setVertexBytes(
+				&origin,
+				length: 3 * MemoryLayout<Float>.stride,
+				index: 3
+			)
+			
 			for material in mesh.translucentMaterials {
 				renderEncoder.setFragmentTexture(
 					material.texture,

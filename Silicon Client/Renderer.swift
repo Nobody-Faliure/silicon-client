@@ -208,7 +208,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 		serverConnection.onPosition = { [weak self] new_player in
 			guard let self else { return }
 			
-			player = new_player
+			player.position = new_player.position
+			player.previousTickPosition = new_player.position
+			player.yaw = new_player.yaw
+			player.pitch = new_player.pitch
+			player.velocity = [0, 0, 0]
 			self.hasSpawned = true
 		}
 		
@@ -230,6 +234,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 			self.clientWorld.dirtySections = self.clientWorld.dirtySections.filter {
 				$0.chunkX != chunkX || $0.chunkZ != chunkZ
 			}
+		}
+		
+		serverConnection.onGameMode = { [weak self] mode in
+			guard let self else { return }
+
+			self.player.gameMode = mode
+			print("[game] gamemode \(mode)")
 		}
 		
 		Task {

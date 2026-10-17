@@ -1,5 +1,9 @@
 import Foundation
 
+enum GameMode: UInt8 {
+	case survival = 0, creative = 1, adventure = 2, spectator = 3
+}
+
 struct Player {
 	var position = SIMD3<Double>(0, 0, 0)
 	
@@ -10,6 +14,8 @@ struct Player {
 	var velocity = SIMD3<Double>(0, 0, 0)
 	
 	var onGround = false
+	
+	var gameMode: GameMode = .survival
 	
 	var hitBox: Hitbox {
 		Hitbox(boxes: [Box(min: position - [0.3, 0, 0.3], max: position + [0.3, 1.8, 0.3])])
@@ -50,22 +56,28 @@ struct Player {
 		velocity.z += flat.y * push * 0.98
 		velocity.y += wish.y * push * 3       // vanilla: 3× the flying speed, so 0.15
 		
-		let box = hitBox.boxes[0]
-		let areaMin = box.min + pointwiseMin(velocity, [0, 0, 0])
-		let areaMax = box.max + pointwiseMax(velocity, [0, 0, 0])
+		let allowed: SIMD3<Double>
 		
-		var nearby: [Box] = []
-		for x in Int(floor(areaMin.x))...Int(floor(areaMax.x)) {
-			for y in Int(floor(areaMin.y))...Int(floor(areaMax.y)) {
-				for z in Int(floor(areaMin.z))...Int(floor(areaMax.z)) {
-					nearby += world.hitbox(at: [Double(x), Double(y), Double(z)]).boxes
+		if gameMode != .spectator {
+			let box = hitBox.boxes[0]
+			let areaMin = box.min + pointwiseMin(velocity, [0, 0, 0])
+			let areaMax = box.max + pointwiseMax(velocity, [0, 0, 0])
+			
+			var nearby: [Box] = []
+			for x in Int(floor(areaMin.x))...Int(floor(areaMax.x)) {
+				for y in Int(floor(areaMin.y))...Int(floor(areaMax.y)) {
+					for z in Int(floor(areaMin.z))...Int(floor(areaMax.z)) {
+						nearby += world.hitbox(at: [Double(x), Double(y), Double(z)]).boxes
+					}
 				}
 			}
+			
+			// How far I can really go, after walls cut it short
+			allowed = hitBox.collidesIn(Hitbox(boxes: nearby), velocity)
+		} else {
+			allowed = velocity
 		}
-		
-		// How far I can really go, after walls cut it short
-		let allowed = hitBox.collidesIn(Hitbox(boxes: nearby), velocity)
-		
+	
 		position += allowed
 		
 		// A wall cut this direction short, so stop moving that way

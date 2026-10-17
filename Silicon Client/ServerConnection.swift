@@ -14,10 +14,12 @@ final class ServerConnection {
 	private var incoming = Data()
 	private var protocolState: ProtocolState = .handshaking
 	private let log = PacketLog(fileName: "packets.bin")
+	
 	var onChunk: ((Chunk) -> Void)?
 	var onPosition: ((Player) -> Void)?
 	var onForgetChunk: ((Int, Int) -> Void)?
 	var onLight: ((Int, Int, [Int: Data], [Int: Data]) -> Void)?
+	var onGameMode: ((GameMode) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -219,6 +221,27 @@ final class ServerConnection {
 			
 			DispatchQueue.main.async {
 				self.onForgetChunk?(chunkX, chunkZ)
+			}
+			
+		case (.play, 0x31):
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()                // packet id
+			_ = reader.readInt()                   // your entity id
+			_ = reader.readByte()                  // hardcore
+			let dimensionCount = reader.readVarInt()
+			for _ in 0..<dimensionCount { _ = reader.readIdentifier() }  // world names
+			_ = reader.readVarInt()                // max players
+			_ = reader.readVarInt()                // view distance
+			_ = reader.readVarInt()                // simulation distance
+			_ = reader.readByte()                  // reduced debug info
+			_ = reader.readByte()                  // respawn screen
+			_ = reader.readByte()                  // limited crafting
+			_ = reader.readVarInt()                // dimension type
+			_ = reader.readIdentifier()            // dimension name
+			_ = reader.readLong()                  // hashed seed
+
+			if let mode = GameMode(rawValue: reader.readByte()) {
+				DispatchQueue.main.async { self.onGameMode?(mode) }
 			}
 			
 		default:

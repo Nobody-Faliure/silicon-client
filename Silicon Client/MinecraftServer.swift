@@ -11,7 +11,7 @@ final class MinecraftServer {
 		"pause-when-empty-seconds": "0",     // never pause the world
 		"view-distance": "32",
 		"simulation-distance": "8",
-		"gamemode": "spectator",
+		"gamemode": "creative",
 		"allow-flight": "true",
 	]
 	

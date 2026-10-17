@@ -460,7 +460,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private func tick() {
 		player.previousTickPosition = player.position
 		
-		player.spectatorFly(input: input, deltaTime: Renderer.tickLength)
+		player.updatePosition(input: input, deltaTime: Renderer.tickLength, world: clientWorld)
 		
 		guard hasSpawned else { return }
 		
@@ -468,7 +468,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		player.yaw = -player.yaw * 180 / .pi
 		player.pitch = player.pitch * 180 / .pi
 		
-		serverConnection.sendPlayerPosition(player, onGround: false)
+		serverConnection.sendPlayerPosition(player, onGround: player.onGround)
 		serverConnection.sendClientTickEnd()
 	}
 	

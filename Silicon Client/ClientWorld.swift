@@ -30,6 +30,25 @@ final class ClientWorld {
 		return chunk.getBlockState(x: worldX & 15, y: y, z: worldZ & 15)
 	}
 	
+	// Boxes of the block at this spot, placed in the world
+	func hitbox(at position: SIMD3<Double>) -> Hitbox {
+		let x = Int(floor(position.x))
+		let y = Int(floor(position.y))
+		let z = Int(floor(position.z))
+		let corner = SIMD3<Double>(Double(x), Double(y), Double(z))
+		
+		// Not loaded yet: treat as solid so you don't fall into the void
+		guard let id = blockID(worldX: x, y: y, worldZ: z) else {
+			return Hitbox(boxes: [Box(min: corner, max: corner + [1, 1, 1])])
+		}
+		
+		// Air has no boxes
+		if id == 0 { return Hitbox(boxes: []) }
+		
+		// For now, every other block is a full cube
+		return Hitbox(boxes: [Box(min: corner, max: corner + [1, 1, 1])])
+	}
+	
 	func blockID(worldX: Int, y: Int, worldZ: Int) -> UInt16? {
 		guard y >= Chunk.minY, y < Chunk.minY + Chunk.sectionCount * Section.height else {
 			return nil

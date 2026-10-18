@@ -24,6 +24,7 @@ struct Player {
 		Hitbox(boxes: [Box(min: position - [0.3, 0, 0.3], max: position + [0.3, 1.8, 0.3])])
 	}
 	
+	var movementSpeed: Double = 0.1
 	var flyingSpeed: Double = 0
 	
 	// Where the player was one tick ago. The camera slides from here to now.
@@ -35,13 +36,23 @@ struct Player {
 			if mayFly && gameMode != .spectator { isFlying.toggle() }
 		}
 		
-		if input.scrollDelta != 0 {
-			input.flyStep = min(4, max(1, input.flyStep + Double(input.scrollDelta) * 0.1))
-			input.scrollDelta = 0
+		if gameMode == .spectator && input.scrollDelta != 0 {
+			if input.scrollDelta != 0 {
+				input.flyStep = min(4, max(1, input.flyStep + Double(input.scrollDelta) * 0.1))
+				input.scrollDelta = 0
+			}
 		}
 		
 		// How hard the keys push this tick (vanilla creative flight: 0.05)
-		let push = flyingSpeed * input.flyStep
+		let push: Double
+		if isFlying {
+			// Spectator scroll boosts speed; creative doesn't
+			push = flyingSpeed * (gameMode == .spectator ? input.flyStep : 1)
+		} else if onGround {
+			push = movementSpeed
+		} else {
+			push = 0.02
+		}
 		
 		var wish = SIMD3<Double>(0, 0, 0)
 		
@@ -62,7 +73,10 @@ struct Player {
 		
 		velocity.x += flat.x * push * 0.98
 		velocity.z += flat.y * push * 0.98
-		velocity.y += wish.y * push * 3       // vanilla: 3× the flying speed, so 0.15
+		
+		if isFlying {
+			velocity.y += wish.y * push * 3    // vanilla: 3× the flying speed, so 0.15
+		}
 		
 		let allowed: SIMD3<Double>
 		
@@ -88,14 +102,26 @@ struct Player {
 	
 		position += allowed
 		
+		// Was falling and the floor cut it short
+		onGround = velocity.y < 0 && allowed.y != velocity.y
+
+		// Creative: touching the ground while flying ends flying
+		if onGround && isFlying && gameMode != .spectator { isFlying = false }
+		
 		// A wall cut this direction short, so stop moving that way
 		for axis in 0..<3 where allowed[axis] != velocity[axis] {
 			velocity[axis] = 0
 		}
 		
-		velocity.x *= 0.91   // sideways: air drag
-		velocity.z *= 0.91
-		velocity.y *= 0.6    // up/down: stops almost at once
+		let drag = onGround && !isFlying ? 0.546 : 0.91
+		velocity.x *= drag
+		velocity.z *= drag
+		
+		if isFlying {
+			velocity.y *= 0.6                      // up/down: stops almost at once
+		} else {
+			velocity.y = (velocity.y - 0.08) * 0.98   // gravity, then air drag
+		}
 	}
 	
 	mutating func updateLookDirection(input: Input) {

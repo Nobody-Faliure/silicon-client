@@ -15,13 +15,16 @@ struct Player {
 	
 	var onGround = false
 	
+	var isFlying = false
+	var mayFly = false
+	
 	var gameMode: GameMode = .survival
 	
 	var hitBox: Hitbox {
 		Hitbox(boxes: [Box(min: position - [0.3, 0, 0.3], max: position + [0.3, 1.8, 0.3])])
 	}
 	
-	static let spectatorFlySpeed: Double = 10.9
+	var flyingSpeed: Double = 0
 	
 	// Where the player was one tick ago. The camera slides from here to now.
 	var previousTickPosition = SIMD3<Double>(0, 0, 0)
@@ -33,7 +36,7 @@ struct Player {
 		}
 		
 		// How hard the keys push this tick (vanilla creative flight: 0.05)
-		let push = 0.05 * input.flyStep
+		let push = flyingSpeed * input.flyStep
 		
 		var wish = SIMD3<Double>(0, 0, 0)
 		

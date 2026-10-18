@@ -20,6 +20,7 @@ final class ServerConnection {
 	var onForgetChunk: ((Int, Int) -> Void)?
 	var onLight: ((Int, Int, [Int: Data], [Int: Data]) -> Void)?
 	var onGameMode: ((GameMode) -> Void)?
+	var onAbilities: ((_ isFlying: Bool, _ mayFly: Bool, _ flyingSpeed: Double) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -242,6 +243,20 @@ final class ServerConnection {
 
 			if let mode = GameMode(rawValue: reader.readByte()) {
 				DispatchQueue.main.async { self.onGameMode?(mode) }
+			}
+			
+		case (.play, 0x40):
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()                // packet id
+			let flags = reader.readByte()
+			let flyingSpeed = Double(reader.readFloat())
+			_ = reader.readFloat()                 // walking speed (zoom), unused for now
+
+			let isFlying = flags & 0x02 != 0       // flying right now
+			let mayFly   = flags & 0x04 != 0       // allowed to fly
+
+			DispatchQueue.main.async {
+				self.onAbilities?(isFlying, mayFly, flyingSpeed)
 			}
 			
 		default:

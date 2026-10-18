@@ -243,6 +243,15 @@ final class Renderer: NSObject, MTKViewDelegate {
 			print("[game] gamemode \(mode)")
 		}
 		
+		serverConnection.onAbilities = { [weak self] isFlying, mayFly, flyingSpeed in
+			guard let self else { return }
+
+			self.player.isFlying = isFlying
+			self.player.mayFly = mayFly
+			self.player.flyingSpeed = flyingSpeed
+			print("[game] flying \(isFlying), may fly \(mayFly), speed \(flyingSpeed)")
+		}
+		
 		Task {
 			do {
 				status.show("Downloading/Preparing textures")
@@ -324,7 +333,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		debug.facing = Renderer.facingName(yaw: player.yaw, pitch: player.pitch)
 		debug.yaw = Renderer.yawDegrees(player.yaw)
 		debug.pitch = Double(player.pitch * 180 / .pi)
-		debug.blocksPerSecond = Player.spectatorFlySpeed * input.flyStep
+		debug.blocksPerSecond = player.flyingSpeed * input.flyStep
 		
 		debug.chunksLoaded = clientWorld.chunks.count
 		debug.sectionMeshes = sectionMeshes.count

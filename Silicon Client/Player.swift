@@ -27,6 +27,8 @@ struct Player {
 	var movementSpeed: Double = 0.1
 	var flyingSpeed: Double = 0
 	
+	var jumpStrength: Double = 0.42
+	
 	// Where the player was one tick ago. The camera slides from here to now.
 	var previousTickPosition = SIMD3<Double>(0, 0, 0)
 	
@@ -76,6 +78,8 @@ struct Player {
 		
 		if isFlying {
 			velocity.y += wish.y * push * 3    // vanilla: 3× the flying speed, so 0.15
+		} else if input.spacePressed && onGround {
+			velocity.y = jumpStrength          // jump: a kick upward, gravity does the rest
 		}
 		
 		let allowed: SIMD3<Double>

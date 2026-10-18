@@ -252,6 +252,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 			print("[game] flying \(isFlying), may fly \(mayFly), speed \(flyingSpeed)")
 		}
 		
+		serverConnection.onEntityID = { [weak self] id in
+			self?.player.entityID = id
+		}
+		
 		Task {
 			do {
 				status.show("Downloading/Preparing textures")
@@ -481,9 +485,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 		player.previousTickPosition = player.position
 		
 		let wasFlying = player.isFlying
+		let wasSprinting = player.isSprinting
 		player.updatePosition(input: input, deltaTime: Renderer.tickLength, world: clientWorld)
 		if player.isFlying != wasFlying {
 			serverConnection.sendFlying(player.isFlying)
+		}
+		if player.isSprinting != wasSprinting {
+			serverConnection.sendSprinting(player.isSprinting, entityID: player.entityID)
 		}
 		
 		guard hasSpawned else { return }

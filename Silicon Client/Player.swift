@@ -5,6 +5,8 @@ enum GameMode: UInt8 {
 }
 
 struct Player {
+	var entityID = 0          // our number on the server, from Login
+	
 	var position = SIMD3<Double>(0, 0, 0)
 	
 	var yaw: Float = 0

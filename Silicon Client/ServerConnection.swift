@@ -21,6 +21,7 @@ final class ServerConnection {
 	var onLight: ((Int, Int, [Int: Data], [Int: Data]) -> Void)?
 	var onGameMode: ((GameMode) -> Void)?
 	var onAbilities: ((_ isFlying: Bool, _ mayFly: Bool, _ flyingSpeed: Double) -> Void)?
+	var onEntityID: ((Int) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -227,7 +228,8 @@ final class ServerConnection {
 		case (.play, 0x31):
 			var reader = NBTReader(data: packet)
 			_ = reader.readVarInt()                // packet id
-			_ = reader.readInt()                   // your entity id
+			let entityID = reader.readInt()        // your entity id
+			DispatchQueue.main.async { self.onEntityID?(entityID) }
 			_ = reader.readByte()                  // hardcore
 			let dimensionCount = reader.readVarInt()
 			for _ in 0..<dimensionCount { _ = reader.readIdentifier() }  // world names
@@ -240,7 +242,7 @@ final class ServerConnection {
 			_ = reader.readVarInt()                // dimension type
 			_ = reader.readIdentifier()            // dimension name
 			_ = reader.readLong()                  // hashed seed
-
+			
 			if let mode = GameMode(rawValue: reader.readByte()) {
 				DispatchQueue.main.async { self.onGameMode?(mode) }
 			}
@@ -251,10 +253,10 @@ final class ServerConnection {
 			let flags = reader.readByte()
 			let flyingSpeed = Double(reader.readFloat())
 			_ = reader.readFloat()                 // walking speed (zoom), unused for now
-
+			
 			let isFlying = flags & 0x02 != 0       // flying right now
 			let mayFly   = flags & 0x04 != 0       // allowed to fly
-
+			
 			DispatchQueue.main.async {
 				self.onAbilities?(isFlying, mayFly, flyingSpeed)
 			}
@@ -422,14 +424,29 @@ final class ServerConnection {
 	
 	func sendFlying(_ isFlying: Bool) {
 		var payload = Data()
-
+		
 		VarInt.write(0x28, to: &payload)
 		payload.append(isFlying ? 0x02 : 0x00)   // only the flying bit counts
-
+		
 		var packet = Data()
 		VarInt.write(payload.count, to: &packet)
 		packet.append(payload)
-
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
+	func sendSprinting(_ isSprinting: Bool, entityID: Int) {
+		var payload = Data()
+		
+		VarInt.write(0x2a, to: &payload)
+		VarInt.write(entityID, to: &payload)
+		VarInt.write(isSprinting ? 1 : 2, to: &payload)   // 1 start, 2 stop
+		VarInt.write(0, to: &payload)                     // horse jump, unused
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
 		connection?.send(content: packet, completion: .contentProcessed { _ in })
 	}
 	

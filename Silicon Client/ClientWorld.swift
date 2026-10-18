@@ -11,6 +11,15 @@ final class ClientWorld {
 	
 	var dirtySections: Set<SectionPosition> = []
 	
+	static let noCollision: Set<String> = [
+		"minecraft:air"
+		,"minecraft:water", "minecraft:lava", "minecraft:bubble_column",
+		"minecraft:cave_air", "minecraft:void_air",
+		"minecraft:seagrass", "minecraft:tall_seagrass",
+		"minecraft:kelp", "minecraft:kelp_plant",
+		"minecraft:short_grass", "minecraft:tall_grass", "minecraft:fern", "minecraft:large_fern",
+	]
+	
 	init() {
 	}
 	
@@ -42,8 +51,9 @@ final class ClientWorld {
 			return Hitbox(boxes: [Box(min: corner, max: corner + [1, 1, 1])])
 		}
 		
+		let name = BlockRegistry.statesByID[Int(id)].block.id
 		// Air has no boxes
-		if id == 0 { return Hitbox(boxes: []) }
+		if ClientWorld.noCollision.contains(name) { return Hitbox(boxes: []) }
 		
 		// For now, every other block is a full cube
 		return Hitbox(boxes: [Box(min: corner, max: corner + [1, 1, 1])])

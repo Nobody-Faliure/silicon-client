@@ -135,4 +135,9 @@ final class ClientWorld {
 			$0.chunkX == chunkX && $0.chunkZ == chunkZ
 		}
 	}
+	
+	func unloadAll() {
+		chunks = []
+		dirtySections = []
+	}
 }

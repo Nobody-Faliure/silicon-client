@@ -259,6 +259,14 @@ final class Renderer: NSObject, MTKViewDelegate {
 			self?.player.entityID = id
 		}
 		
+		serverConnection.onRespawn = { [weak self] in
+			guard let self else { return }
+			
+			self.clientWorld.unloadAll()
+			self.sectionMeshes.removeAll()
+			self.hasSentPlayerLoaded = false
+		}
+		
 		Task {
 			do {
 				status.show("Downloading/Preparing textures")

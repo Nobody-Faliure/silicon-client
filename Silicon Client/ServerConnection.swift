@@ -22,6 +22,7 @@ final class ServerConnection {
 	var onGameMode: ((GameMode) -> Void)?
 	var onAbilities: ((_ isFlying: Bool, _ mayFly: Bool, _ flyingSpeed: Double) -> Void)?
 	var onEntityID: ((Int) -> Void)?
+	var onRespawn: (() -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -271,6 +272,16 @@ final class ServerConnection {
 				self.onAbilities?(isFlying, mayFly, flyingSpeed)
 			}
 			
+		case (.play, 0x68):
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()                // packet id
+			let health = reader.readFloat()        // 20 = full hearts, 0 = dead
+			
+			if health <= 0 {
+				sendRespawn()
+				DispatchQueue.main.async { self.onRespawn?() }
+			}
+			
 		default:
 			break
 		}
@@ -465,6 +476,19 @@ final class ServerConnection {
 		
 		VarInt.write(0x07, to: &payload)
 		VarInt.writeString(command, to: &payload)
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
+	func sendRespawn() {
+		var payload = Data()
+		
+		VarInt.write(0x0c, to: &payload)
+		VarInt.write(0, to: &payload)                     // 0 = respawn, 1 = open stats
 		
 		var packet = Data()
 		VarInt.write(payload.count, to: &packet)

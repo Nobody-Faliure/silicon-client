@@ -247,6 +247,16 @@ final class ServerConnection {
 				DispatchQueue.main.async { self.onGameMode?(mode) }
 			}
 			
+		case (.play, 0x26):
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()                // packet id
+			let event = reader.readByte()          // which kind of message
+			let value = reader.readFloat()         // the message's number
+			
+			if event == 3, let mode = GameMode(rawValue: UInt8(value)) {
+				DispatchQueue.main.async { self.onGameMode?(mode) }
+			}
+			
 		case (.play, 0x40):
 			var reader = NBTReader(data: packet)
 			_ = reader.readVarInt()                // packet id
@@ -442,6 +452,19 @@ final class ServerConnection {
 		VarInt.write(entityID, to: &payload)
 		VarInt.write(isSprinting ? 1 : 2, to: &payload)   // 1 start, 2 stop
 		VarInt.write(0, to: &payload)                     // horse jump, unused
+		
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
+	func sendCommand(_ command: String) {
+		var payload = Data()
+		
+		VarInt.write(0x07, to: &payload)
+		VarInt.writeString(command, to: &payload)
 		
 		var packet = Data()
 		VarInt.write(payload.count, to: &packet)

@@ -4,20 +4,21 @@ import MetalKit
 struct MetalView: NSViewRepresentable {
 	let status: LoadingStatus
 	let debug: DebugInfo
+	let chat: ChatInfo
 	
 	// Keeps the renderer alive
 	class Coordinator {
 		let renderer:  Renderer
 		let input = Input()
 		
-		init(status: LoadingStatus, debug: DebugInfo) {
-			renderer = Renderer(input: input, status: status, debug: debug)
+		init(status: LoadingStatus, debug: DebugInfo, chat: ChatInfo) {
+			renderer = Renderer(input: input, status: status, debug: debug, chat: chat)
 		}
 	}
 	
 	// Teaches swift how to use a coordinator
 	func makeCoordinator() -> Coordinator {
-		Coordinator(status: status, debug: debug)
+		Coordinator(status: status, debug: debug, chat: chat)
 	}
 	
 	// Creates the Metal view

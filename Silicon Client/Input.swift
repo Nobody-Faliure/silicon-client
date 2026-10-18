@@ -31,4 +31,8 @@ final class Input {
 	var flyStep: Double = 1
 	
 	var showDebug = false
+	
+	var chatOpen = false
+	var chatText = ""
+	var pendingCommand: String?   // Enter puts it here; Renderer sends it and clears it
 }

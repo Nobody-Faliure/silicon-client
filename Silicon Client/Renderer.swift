@@ -66,6 +66,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	let status: LoadingStatus
 	let debug: DebugInfo
+	let chat: ChatInfo
 	
 	private var hasSpawned = false
 	
@@ -116,7 +117,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var lastAnimationTick = -1
 	
 	// Creates all Metal resources when Renderer starts
-	init(input: Input, status: LoadingStatus, debug: DebugInfo) {
+	init(input: Input, status: LoadingStatus, debug: DebugInfo, chat: ChatInfo) {
 		
 		// Get the Mac's Metal GPU
 		self.device = MTLCreateSystemDefaultDevice()!
@@ -184,6 +185,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 		self.status = status
 		
 		self.debug = debug
+		
+		self.chat = chat
 		
 		let resourceDownloader = ResourceDownloader()
 		
@@ -300,6 +303,15 @@ final class Renderer: NSObject, MTKViewDelegate {
 			}
 		}
 		AppDelegate.server = minecraftServer
+	}
+	
+	private func updateChat() {
+		if chat.isOpen != input.chatOpen {
+			chat.isOpen = input.chatOpen
+		}
+		if chat.text != input.chatText {
+			chat.text = input.chatText
+		}
 	}
 	
 	private func updateDebug(now: CFTimeInterval, deltaTime: Double) {
@@ -496,6 +508,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		guard hasSpawned else { return }
 		
+		if let command = input.pendingCommand {
+			input.pendingCommand = nil
+			serverConnection.sendCommand(command)
+		}
+		
 		var player = self.player
 		player.yaw = -player.yaw * 180 / .pi
 		player.pitch = player.pitch * 180 / .pi
@@ -529,6 +546,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 		}
 		
 		updateDebug(now: now, deltaTime: deltaTime)
+		
+		updateChat()
 		
 		advanceAnimations(now: now)
 		

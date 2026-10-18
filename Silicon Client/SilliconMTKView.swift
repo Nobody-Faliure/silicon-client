@@ -57,6 +57,28 @@ final class SiliconMTKView: MTKView {
 	}
 	
 	override func keyDown(with event: NSEvent) {
+		if input.chatOpen {
+			switch event.keyCode {
+			case 53:                                   // Esc: cancel
+				input.chatOpen = false
+				captureMouse()
+			case 36:                                   // Enter: send if it's a command
+				if input.chatText.hasPrefix("/") && input.chatText.count > 1 {
+					input.pendingCommand = String(input.chatText.dropFirst())
+				}
+				input.chatOpen = false
+				captureMouse()
+			case 51:                                   // Backspace
+				if !input.chatText.isEmpty { input.chatText.removeLast() }
+			default:                                   // any other key: add its letter
+				if let typed = event.characters,
+				   typed.unicodeScalars.allSatisfy({ $0.value >= 32 && $0.value < 0xF700 }) {
+					input.chatText += typed
+				}
+			}
+			return
+		}
+		
 		if event.keyCode == 53 {
 			if mouseIsCaptured {
 				releaseMouse()
@@ -64,6 +86,13 @@ final class SiliconMTKView: MTKView {
 				captureMouse()
 			}
 			
+			return
+		}
+		
+		if event.keyCode == 44 {                       // "/" opens chat
+			input.chatText = "/"
+			input.chatOpen = true
+			releaseMouse()
 			return
 		}
 		

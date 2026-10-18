@@ -78,6 +78,7 @@ final class SiliconMTKView: MTKView {
 		if event.keyCode == 1 { input.sPressed = true }
 		if event.keyCode == 2 { input.dPressed = true }
 		if event.keyCode == 49 { input.spacePressed = true }
+		if event.keyCode == 49 && !event.isARepeat { input.spaceTapped(at: event.timestamp) }
 	}
 	
 	override func keyUp(with event: NSEvent) {

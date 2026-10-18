@@ -420,6 +420,19 @@ final class ServerConnection {
 		connection?.send(content: packet, completion: .contentProcessed { _ in })
 	}
 	
+	func sendFlying(_ isFlying: Bool) {
+		var payload = Data()
+
+		VarInt.write(0x28, to: &payload)
+		payload.append(isFlying ? 0x02 : 0x00)   // only the flying bit counts
+
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
 	func sendPlayerLoaded() {
 		var payload = Data()
 		

@@ -30,6 +30,11 @@ struct Player {
 	var previousTickPosition = SIMD3<Double>(0, 0, 0)
 	
 	mutating func updatePosition(input: Input, deltaTime: Double, world: ClientWorld) {
+		if input.spaceDoubleTapped {
+			input.spaceDoubleTapped = false
+			if mayFly && gameMode != .spectator { isFlying.toggle() }
+		}
+		
 		if input.scrollDelta != 0 {
 			input.flyStep = min(4, max(1, input.flyStep + Double(input.scrollDelta) * 0.1))
 			input.scrollDelta = 0

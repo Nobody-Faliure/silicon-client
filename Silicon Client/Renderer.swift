@@ -480,7 +480,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private func tick() {
 		player.previousTickPosition = player.position
 		
+		let wasFlying = player.isFlying
 		player.updatePosition(input: input, deltaTime: Renderer.tickLength, world: clientWorld)
+		if player.isFlying != wasFlying {
+			serverConnection.sendFlying(player.isFlying)
+		}
 		
 		guard hasSpawned else { return }
 		

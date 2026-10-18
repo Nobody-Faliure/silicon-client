@@ -12,6 +12,18 @@ final class Input {
 	var spacePressed = false
 	var shiftPressed = false
 	
+	var spaceDoubleTapped = false          // Player reads this, then resets it
+	private var lastSpaceTap: TimeInterval = 0
+
+	func spaceTapped(at time: TimeInterval) {
+		if time - lastSpaceTap < 0.35 {
+			spaceDoubleTapped = true
+			lastSpaceTap = 0               // so a third tap starts fresh
+		} else {
+			lastSpaceTap = time
+		}
+	}
+	
 	var scrollDelta: Float = 0
 	
 	var flyStep: Double = 1

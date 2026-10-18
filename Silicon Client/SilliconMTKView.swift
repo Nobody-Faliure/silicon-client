@@ -46,6 +46,7 @@ final class SiliconMTKView: MTKView {
 		input.dPressed = false
 		input.spacePressed = false
 		input.shiftPressed = false
+		input.ctrlPressed = false
 	}
 	
 	override func viewDidMoveToWindow() {
@@ -91,6 +92,7 @@ final class SiliconMTKView: MTKView {
 	
 	override func flagsChanged(with event: NSEvent) {
 		input.shiftPressed = mouseIsCaptured && event.modifierFlags.contains(.shift)
+		input.ctrlPressed = mouseIsCaptured && event.modifierFlags.contains(.control)
 	}
 	
 	override func mouseMoved(with event: NSEvent) {

@@ -12,6 +12,8 @@ final class Input {
 	var spacePressed = false
 	var shiftPressed = false
 	
+	var ctrlPressed = false
+	
 	var spaceDoubleTapped = false          // Player reads this, then resets it
 	private var lastSpaceTap: TimeInterval = 0
 

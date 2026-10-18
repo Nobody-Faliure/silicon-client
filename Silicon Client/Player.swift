@@ -18,6 +18,8 @@ struct Player {
 	var isFlying = false
 	var mayFly = false
 	
+	var isSprinting = false
+	
 	var gameMode: GameMode = .survival
 	
 	var hitBox: Hitbox {
@@ -45,15 +47,18 @@ struct Player {
 			}
 		}
 		
+		if input.ctrlPressed && input.wPressed { isSprinting = true }
+		if !input.wPressed { isSprinting = false }
+		
 		// How hard the keys push this tick (vanilla creative flight: 0.05)
 		let push: Double
+		
 		if isFlying {
-			// Spectator scroll boosts speed; creative doesn't
-			push = flyingSpeed * (gameMode == .spectator ? input.flyStep : 1)
+			push = flyingSpeed * (gameMode == .spectator ? input.flyStep : 1) * (isSprinting ? 2 : 1)
 		} else if onGround {
-			push = movementSpeed
+			push = movementSpeed * (isSprinting ? 1.3 : 1)
 		} else {
-			push = 0.02
+			push = isSprinting ? 0.026 : 0.02
 		}
 		
 		var wish = SIMD3<Double>(0, 0, 0)
@@ -79,7 +84,11 @@ struct Player {
 		if isFlying {
 			velocity.y += wish.y * push * 3    // vanilla: 3× the flying speed, so 0.15
 		} else if input.spacePressed && onGround {
-			velocity.y = jumpStrength          // jump: a kick upward, gravity does the rest
+			velocity.y = jumpStrength
+			if isSprinting {
+				velocity.x += sinYaw * 0.2     // sprint-jump: extra kick forward
+				velocity.z += cosYaw * 0.2
+			}
 		}
 		
 		let allowed: SIMD3<Double>

@@ -16,7 +16,10 @@ struct Hitbox {
 		var allowedMovement = relativeMovement
 		var moved = SIMD3<Double>(0, 0, 0)       // how far we've already gone
 		
-		for axis in [1, 0, 2] {                  // y, then x, then z
+		// y first, then whichever sideways move is bigger (vanilla order)
+		let order = abs(relativeMovement.x) < abs(relativeMovement.z) ? [1, 2, 0] : [1, 0, 2]
+		
+		for axis in order {                  // y, then x, then z
 			for box in boxes {
 				let shifted = Box(min: box.min + moved, max: box.max + moved)
 				for otherBox in other.boxes {

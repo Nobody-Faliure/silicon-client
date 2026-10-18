@@ -69,12 +69,12 @@ struct Player {
 		if input.shiftPressed { wish.y -= 1 }
 		
 		// Diagonal keys shouldn't be faster: cap the sideways wish at length 1
-		var flat = SIMD2<Double>(wish.x, wish.z)
+		var flat = SIMD2<Double>(wish.x, wish.z) * 0.98
 		let length = (flat.x * flat.x + flat.y * flat.y).squareRoot()
 		if length > 1 { flat /= length }
 		
-		velocity.x += flat.x * push * 0.98
-		velocity.z += flat.y * push * 0.98
+		velocity.x += flat.x * push
+		velocity.z += flat.y * push
 		
 		if isFlying {
 			velocity.y += wish.y * push * 3    // vanilla: 3× the flying speed, so 0.15
@@ -103,7 +103,9 @@ struct Player {
 		} else {
 			allowed = velocity
 		}
-	
+		
+		let wasOnGround = onGround             // vanilla picks drag from before the move
+		
 		position += allowed
 		
 		// Was falling and the floor cut it short
@@ -117,7 +119,7 @@ struct Player {
 			velocity[axis] = 0
 		}
 		
-		let drag = onGround && !isFlying ? 0.546 : 0.91
+		let drag = wasOnGround && !isFlying ? 0.546 : 0.91
 		velocity.x *= drag
 		velocity.z *= drag
 		

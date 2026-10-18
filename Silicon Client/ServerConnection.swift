@@ -190,10 +190,10 @@ final class ServerConnection {
 			
 		case (.play, 0x48):
 			if let result = PositionDecoder.decode(packet: packet) {
-				sendConfirmTeleport(result.teleportID)
 				
 				DispatchQueue.main.async {
 					self.onPosition?(result.player)
+					self.sendConfirmTeleport(result.teleportID)
 				}
 			}
 			

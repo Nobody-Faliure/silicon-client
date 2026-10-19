@@ -267,6 +267,18 @@ final class Renderer: NSObject, MTKViewDelegate {
 			self.hasSentPlayerLoaded = false
 		}
 		
+		serverConnection.onAttributes = { [weak self] entityID, stats in
+			guard let self, entityID == self.player.entityID else { return }
+			
+			if let speed = stats[26] {
+				self.player.speedBase = speed.base
+				self.player.speedModifiers = speed.modifiers
+			}
+			if let jump = stats[19] {
+				self.player.jumpStrength = Attributes.finalValue(base: jump.base, modifiers: jump.modifiers)
+			}
+		}
+		
 		Task {
 			do {
 				status.show("Downloading/Preparing textures")

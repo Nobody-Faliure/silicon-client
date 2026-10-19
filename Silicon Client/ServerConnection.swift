@@ -23,6 +23,7 @@ final class ServerConnection {
 	var onAbilities: ((_ isFlying: Bool, _ mayFly: Bool, _ flyingSpeed: Double) -> Void)?
 	var onEntityID: ((Int) -> Void)?
 	var onRespawn: (() -> Void)?
+	var onAttributes: ((_ entityID: Int, _ stats: [Int: (base: Double, modifiers: [AttributeModifier])]) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -281,6 +282,29 @@ final class ServerConnection {
 				sendRespawn()
 				DispatchQueue.main.async { self.onRespawn?() }
 			}
+			
+		case (.play, 0x83):
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()                // packet id
+			let entityID = reader.readVarInt()     // whose stats these are
+			var stats: [Int: (base: Double, modifiers: [AttributeModifier])] = [:]
+			
+			for _ in 0..<reader.readVarInt() {     // each stat
+				let attribute = reader.readVarInt()    // 26 = walking speed, 19 = jump
+				let base = reader.readDouble()
+				var modifiers: [AttributeModifier] = []
+				
+				for _ in 0..<reader.readVarInt() {     // each sticker
+					let id = reader.readIdentifier()
+					let amount = reader.readDouble()
+					let operation = reader.readVarInt()
+					modifiers.append(AttributeModifier(id: id, amount: amount, operation: operation))
+				}
+				
+				stats[attribute] = (base, modifiers)
+			}
+			
+			DispatchQueue.main.async { self.onAttributes?(entityID, stats) }
 			
 		default:
 			break

@@ -28,7 +28,16 @@ struct Player {
 		Hitbox(boxes: [Box(min: position - [0.3, 0, 0.3], max: position + [0.3, 1.8, 0.3])])
 	}
 	
-	var movementSpeed: Double = 0.1
+	var speedBase: Double = 0.1
+	var speedModifiers: [AttributeModifier] = []
+	static let sprintModifier = AttributeModifier(id: "minecraft:sprinting", amount: 0.3, operation: 2)
+	
+	var movementSpeed: Double {
+		var modifiers = speedModifiers.filter { $0.id != "minecraft:sprinting" }
+		if isSprinting { modifiers.append(Player.sprintModifier) }
+		return Attributes.finalValue(base: speedBase, modifiers: modifiers)
+	}
+	
 	var flyingSpeed: Double = 0
 	
 	var jumpStrength: Double = 0.42
@@ -58,7 +67,7 @@ struct Player {
 		if isFlying {
 			push = flyingSpeed * (gameMode == .spectator ? input.flyStep : 1) * (isSprinting ? 2 : 1)
 		} else if onGround {
-			push = movementSpeed * (isSprinting ? 1.3 : 1)
+			push = movementSpeed
 		} else {
 			push = isSprinting ? 0.026 : 0.02
 		}

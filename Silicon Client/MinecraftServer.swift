@@ -159,7 +159,11 @@ final class MinecraftServer {
 			.appendingPathComponent("reports")
 			.appendingPathComponent("blocks.json")
 		
-		if FileManager.default.fileExists(atPath: blocks.path) { return }
+		let dayTimeline = versionFolder
+			.appendingPathComponent("GeneratedData/data/minecraft/timeline/day.json")
+		
+		if FileManager.default.fileExists(atPath: blocks.path),
+		   FileManager.default.fileExists(atPath: dayTimeline.path) { return }
 		
 		let process = Process()
 		process.executableURL = URL(fileURLWithPath: "/usr/bin/java")
@@ -167,6 +171,7 @@ final class MinecraftServer {
 			"-DbundlerMainClass=net.minecraft.data.Main",
 			"-jar", jar.path,
 			"--reports",
+			"--server",
 			"--output", "GeneratedData"
 		]
 		

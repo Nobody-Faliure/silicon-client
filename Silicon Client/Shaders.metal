@@ -60,3 +60,26 @@ fragment float4 fragmentShader(
 	return color;
 }
 
+struct SkyOut {
+	float4 position [[position]];
+	float strength;              // 1 at the fan's center, 0 at its edge
+};
+
+vertex SkyOut skyVertex(
+						constant float4* points [[buffer(0)]],
+						uint id [[vertex_id]],
+						constant float4x4& skyMatrix [[buffer(5)]]
+						) {
+	SkyOut out;
+	out.position = skyMatrix * float4(points[id].xyz, 1.0);
+	out.strength = points[id].w;
+	return out;
+}
+
+fragment float4 skyFragment(
+							SkyOut in [[stage_in]],
+							constant float4& color [[buffer(0)]]
+							) {
+	return float4(pow(color.rgb, float3(2.2)), color.a * in.strength);
+}
+

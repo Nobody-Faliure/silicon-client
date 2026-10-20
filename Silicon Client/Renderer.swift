@@ -39,6 +39,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let translucentPipelineState: MTLRenderPipelineState
 	let translucentDepthState: MTLDepthStencilState
 	
+	let skyPipelineState: MTLRenderPipelineState
+	let skyDepthState: MTLDepthStencilState
+	
 	let minecraftServer = MinecraftServer()
 	let serverConnection = ServerConnection()
 	
@@ -76,6 +79,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private var timeRate: Double = 1      // 1 = moving, 0 = frozen
 	
 	private var skyTrack: ColorTrack?     // sky color over the day, from day.json
+	
+	private var sunsetTrack: ColorTrack?  // sunrise/sunset glow, from day.json
 	
 	// Readings — position, counts — refresh four times a second, which is
 	// fast enough to follow while flying.
@@ -183,6 +188,25 @@ final class Renderer: NSObject, MTKViewDelegate {
 		self.translucentDepthState = device.makeDepthStencilState(
 			descriptor: translucentDepthDescriptor
 		)!
+		
+		// The sky: our own shaders, see-through allowed, ignores depth.
+		let skyDescriptor = MTLRenderPipelineDescriptor()
+		skyDescriptor.vertexFunction = library.makeFunction(name: "skyVertex")!
+		skyDescriptor.fragmentFunction = library.makeFunction(name: "skyFragment")!
+		skyDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm_srgb
+		skyDescriptor.depthAttachmentPixelFormat = .depth32Float
+		
+		skyDescriptor.colorAttachments[0].isBlendingEnabled = true
+		skyDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+		skyDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+		
+		self.skyPipelineState = try! device.makeRenderPipelineState(descriptor: skyDescriptor)
+		
+		let skyDepthDescriptor = MTLDepthStencilDescriptor()
+		skyDepthDescriptor.depthCompareFunction = .always
+		skyDepthDescriptor.isDepthWriteEnabled = false
+		
+		self.skyDepthState = device.makeDepthStencilState(descriptor: skyDepthDescriptor)!
 		
 		// Store input
 		self.input = input
@@ -319,6 +343,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 				
 				let track = ColorTrack.load(version: "26.2", track: "minecraft:visual/sky_color")
 				DispatchQueue.main.async { self.skyTrack = track }
+				
+				let sunset = ColorTrack.load(version: "26.2", track: "minecraft:visual/sunrise_sunset_color")
+				DispatchQueue.main.async { self.sunsetTrack = sunset }
 				
 				status.show("Reading block data")
 				MinecraftServer.generateReports(jar: serverJar)
@@ -701,6 +728,30 @@ final class Renderer: NSObject, MTKViewDelegate {
 			length: MemoryLayout<simd_float4x4>.stride,
 			index: 2
 		)
+		
+		// Sunrise / sunset glow, drawn before the blocks so they cover it
+		if let sunset = sunsetTrack?.color(at: dayTime), sunset.w > 0.001 {
+			let sunsetSide = (6000..<18000).contains(dayTime % 24000)  // noon → midnight
+			var fan = Sky.sunFan(east: !sunsetSide, strength: Float(sunset.w))
+			
+			var skyView = viewMatrix
+			skyView.columns.3 = SIMD4<Float>(0, 0, 0, 1)   // keep turning, drop position
+			var skyMatrix = projectionMatrix * skyView
+			var color = SIMD4<Float>(sunset)
+			
+			renderEncoder.setRenderPipelineState(skyPipelineState)
+			renderEncoder.setDepthStencilState(skyDepthState)
+			renderEncoder.setCullMode(.none)
+			renderEncoder.setVertexBytes(&fan, length: MemoryLayout<SIMD4<Float>>.stride * fan.count, index: 0)
+			renderEncoder.setVertexBytes(&skyMatrix, length: MemoryLayout<simd_float4x4>.stride, index: 5)
+			renderEncoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+			
+			renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: fan.count)
+			
+			renderEncoder.setRenderPipelineState(pipelineState)          // back to blocks
+			renderEncoder.setDepthStencilState(depthStencilState)
+			renderEncoder.setCullMode(.back)
+		}
 		
 		let viewProjection = projectionMatrix * viewMatrix
 		

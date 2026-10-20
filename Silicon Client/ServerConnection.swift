@@ -24,6 +24,7 @@ final class ServerConnection {
 	var onEntityID: ((Int) -> Void)?
 	var onRespawn: (() -> Void)?
 	var onAttributes: ((_ entityID: Int, _ stats: [Int: (base: Double, modifiers: [AttributeModifier])]) -> Void)?
+	var onTime: ((_ ticks: Int, _ rate: Double) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -305,6 +306,20 @@ final class ServerConnection {
 			}
 			
 			DispatchQueue.main.async { self.onAttributes?(entityID, stats) }
+			
+		case (.play, 0x71):
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()                // packet id
+			_ = reader.readLong()                  // world age, unused
+			
+			if reader.readVarInt() > 0 {           // how many clocks (overworld has 1)
+				_ = reader.readVarInt()            // which clock
+				let ticks = reader.readVarLong()   // total ticks on that clock
+				_ = reader.readFloat()             // part of a tick, unused
+				let rate = Double(reader.readFloat())  // 1 = time moving, 0 = frozen
+				
+				DispatchQueue.main.async { self.onTime?(ticks, rate) }
+			}
 			
 		default:
 			break

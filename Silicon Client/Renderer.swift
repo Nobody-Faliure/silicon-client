@@ -72,6 +72,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	private var hasSentPlayerLoaded = false
 	
+	private var dayTime: Int = 0          // ticks on the world clock
+	private var timeRate: Double = 1      // 1 = moving, 0 = frozen
+	
 	// Readings — position, counts — refresh four times a second, which is
 	// fast enough to follow while flying.
 	private var lastReadingUpdate: CFTimeInterval = 0
@@ -277,6 +280,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 			if let jump = stats[19] {
 				self.player.jumpStrength = Attributes.finalValue(base: jump.base, modifiers: jump.modifiers)
 			}
+		}
+		
+		serverConnection.onTime = { [weak self] ticks, rate in
+			self?.dayTime = ticks
+			self?.timeRate = rate
 		}
 		
 		Task {
@@ -514,6 +522,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	// One game tick: move the player, then tell the server where we are.
 	private func tick() {
+		if timeRate > 0 { dayTime += 1 }
+		
 		player.previousTickPosition = player.position
 		
 		let wasFlying = player.isFlying

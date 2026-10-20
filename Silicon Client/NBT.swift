@@ -153,6 +153,23 @@ struct NBTReader {
 		return VarInt.read(from: data, at: &index) ?? 0
 	}
 	
+	mutating func readVarLong() -> Int {
+		var result: UInt64 = 0
+		var shift = 0
+		
+		while shift < 64, index < data.count {
+			let byte = data[data.startIndex + index]
+			index += 1
+			
+			result |= UInt64(byte & 0x7F) << shift
+			if byte & 0x80 == 0 { break }
+			
+			shift += 7
+		}
+		
+		return Int(Int64(bitPattern: result))
+	}
+	
 	mutating func readBytes(_ count: Int) -> Data {
 		guard count > 0, remaining >= count else {
 			index = data.count

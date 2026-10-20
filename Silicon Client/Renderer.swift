@@ -75,6 +75,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private var dayTime: Int = 0          // ticks on the world clock
 	private var timeRate: Double = 1      // 1 = moving, 0 = frozen
 	
+	private var skyTrack: ColorTrack?     // sky color over the day, from day.json
+	
 	// Readings — position, counts — refresh four times a second, which is
 	// fast enough to follow while flying.
 	private var lastReadingUpdate: CFTimeInterval = 0
@@ -314,6 +316,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 				
 				status.show("Downloading the server")
 				let serverJar = try await resourceDownloader.downloadServerJar()
+				
+				let track = ColorTrack.load(version: "26.2", track: "minecraft:visual/sky_color")
+				DispatchQueue.main.async { self.skyTrack = track }
 				
 				status.show("Reading block data")
 				MinecraftServer.generateReports(jar: serverJar)
@@ -601,13 +606,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 		renderPassDescriptor.depthAttachment.loadAction = .clear
 		
 		// Sky color
+		let base = SIMD3<Double>(0x78, 0xa7, 0xff) / 255                   // overworld sky, #78a7ff
+		let t4 = skyTrack?.color(at: dayTime) ?? SIMD4<Double>(1, 1, 1, 1)
+		let tint = SIMD3(t4.x, t4.y, t4.z)   // white = normal day
+		let sky = base * tint
+		let screenSky = SIMD3(pow(sky.x, 2.2), pow(sky.y, 2.2), pow(sky.z, 2.2))
 		renderPassDescriptor.colorAttachments[0].clearColor =
-		MTLClearColor(
-			red: 0.45,
-			green: 0.70,
-			blue: 1.0,
-			alpha: 1.0
-		)
+		MTLClearColor(red: screenSky.x, green: screenSky.y, blue: screenSky.z, alpha: 1.0)
 		
 		// Begin GPU commands
 		let commandBuffer = commandQueue.makeCommandBuffer()!

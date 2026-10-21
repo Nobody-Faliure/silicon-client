@@ -103,11 +103,14 @@ final class ClientWorld {
 					id: id
 				)
 				
-				dirtySections.insert(SectionPosition(
-					chunkX: chunkX,
-					chunkZ: chunkZ,
-					sectionIndex: chunks[i].locate(y).section
-				))
+				let section = chunks[i].locate(y).section
+				
+				dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section))
+				
+				if x == 0 { dirtySections.insert(SectionPosition(chunkX: chunkX - 1, chunkZ: chunkZ, sectionIndex: section)) }
+				if x == 15 { dirtySections.insert(SectionPosition(chunkX: chunkX + 1, chunkZ: chunkZ, sectionIndex: section)) }
+				if z == 0  { dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ - 1, sectionIndex: section)) }
+				if z == 15 { dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ + 1, sectionIndex: section)) }
 				
 				return
 			}

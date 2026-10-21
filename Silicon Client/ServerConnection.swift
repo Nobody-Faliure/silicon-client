@@ -25,6 +25,7 @@ final class ServerConnection {
 	var onRespawn: (() -> Void)?
 	var onAttributes: ((_ entityID: Int, _ stats: [Int: (base: Double, modifiers: [AttributeModifier])]) -> Void)?
 	var onTime: ((_ ticks: Int, _ rate: Double) -> Void)?
+	var onBlockState: ((_ blockStateId: Int, _ x: Int, _ y: Int, _ z: Int) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -306,6 +307,41 @@ final class ServerConnection {
 			}
 			
 			DispatchQueue.main.async { self.onAttributes?(entityID, stats) }
+			
+		case (.play, 0x08):							// set block state
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			let position = reader.readLong()
+			let x = position >> 38
+			let z = (position << 26) >> 38
+			let y = (position << 52) >> 52
+			let blockStateId = reader.readVarInt()
+			
+			DispatchQueue.main.async {
+				self.onBlockState?(blockStateId, x, y, z)
+			}
+			
+		case (.play, 0x54):							// block sections update
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			
+			let sectionPosition = reader.readLong()
+			let sectionX = sectionPosition >> 42
+			let sectionZ = (sectionPosition << 22) >> 42
+			let sectionY = (sectionPosition << 44) >> 44
+			
+			let count = reader.readVarInt()
+			for _ in 0..<count {
+				let packed = reader.readVarLong()
+				let blockStateId = packed >> 12
+				let localX = (packed >> 8) & 15
+				let localZ = (packed >> 4) & 15
+				let localY = packed & 15
+				
+				DispatchQueue.main.async {
+					self.onBlockState?(blockStateId, sectionX * 16 + localX, sectionY * 16 + localY, sectionZ * 16 + localZ)
+				}
+			}
 			
 		case (.play, 0x71):
 			var reader = NBTReader(data: packet)

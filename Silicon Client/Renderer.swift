@@ -313,6 +313,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 			self?.timeRate = rate
 		}
 		
+		serverConnection.onBlockState = { [weak self] blockStateId, x, y, z in
+			guard let self else { return }
+			
+			clientWorld.receiveBlockUpdate(chunkX: x >> 4, chunkZ: z >> 4,
+									 x: x & 15, y: y, z: z & 15, id: UInt16(blockStateId))
+		}
+		
 		Task {
 			do {
 				status.show("Downloading/Preparing textures")

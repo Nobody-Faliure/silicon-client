@@ -15,9 +15,10 @@ struct SectionRenderMesh {
 	let sectionIndex: Int
 	var materials: [SectionMaterialMesh]
 	var translucentMaterials: [SectionMaterialMesh]
+	let corners: [SIMD3<Float>]
 	
 	// The 8 corners of this section, in world coordinates.
-	var corners: [SIMD3<Float>] {
+	static func cornersOf(chunkX: Int, chunkZ: Int, sectionIndex: Int) -> [SIMD3<Float>] {
 		let minX = Float(chunkX * 16)
 		let minY = Float(-64 + sectionIndex * 16)
 		let minZ = Float(chunkZ * 16)
@@ -78,7 +79,8 @@ func buildSectionRenderMesh(
 		chunkZ: chunk.chunkZ,
 		sectionIndex: sectionIndex,
 		materials: materials(from: mesh.opaque),
-		translucentMaterials: materials(from: mesh.translucent)
+		translucentMaterials: materials(from: mesh.translucent),
+		corners: SectionRenderMesh.cornersOf(chunkX: chunk.chunkX, chunkZ: chunk.chunkZ, sectionIndex: sectionIndex)
 	)
 }
 

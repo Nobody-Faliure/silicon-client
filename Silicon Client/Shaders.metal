@@ -44,6 +44,8 @@ fragment float4 fragmentShader(
 									 min_filter::nearest,
 									 mip_filter::linear
 	);
+	color.rgb /= max(color.a, 0.001);
+	
 	
 	float4 color = texture.sample(textureSampler, in.uv);
 	

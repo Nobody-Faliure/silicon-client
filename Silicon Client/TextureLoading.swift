@@ -95,7 +95,7 @@ extension Renderer {
 				pixelFormat: .rgba8Unorm_srgb,
 				width: width,
 				height: frameHeight,
-				mipmapped: false
+				mipmapped: true
 			)
 			
 			let texture = device.makeTexture(
@@ -114,6 +114,12 @@ extension Renderer {
 				withBytes: pixelData,
 				bytesPerRow: bytesPerRow
 			)
+			
+			let mipmapCommands = commandQueue.makeCommandBuffer()!
+			let shrinker = mipmapCommands.makeBlitCommandEncoder()!
+			shrinker.generateMipmaps(for: texture)
+			shrinker.endEncoding()
+			mipmapCommands.commit()
 			
 			// A strip: remember every frame so draw() can swap them later.
 			if height > width {
@@ -146,6 +152,9 @@ extension Renderer {
 		
 		lastAnimationTick = tick
 		
+		let mipmapCommands = commandQueue.makeCommandBuffer()!
+		let shrinker = mipmapCommands.makeBlitCommandEncoder()!
+		
 		for animated in animatedTextures.values {
 			let order = animated.animation.frameOrder
 			
@@ -167,6 +176,11 @@ extension Renderer {
 					bytesPerRow: animated.size * 4
 				)
 			}
+			
+			shrinker.generateMipmaps(for: animated.texture)
 		}
+		
+		shrinker.endEncoding()
+		mipmapCommands.commit()
 	}
 }

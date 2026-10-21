@@ -41,8 +41,9 @@ fragment float4 fragmentShader(
 							   ) {
 	constexpr sampler textureSampler(
 									 mag_filter::nearest,
-									 min_filter::nearest
-									 );
+									 min_filter::nearest,
+									 mip_filter::linear
+	);
 	
 	float4 color = texture.sample(textureSampler, in.uv);
 	

@@ -26,9 +26,6 @@ vertex VertexOut vertexShader(
 	
 	VertexOut out;
 	out.position = projectionMatrix * viewMatrix * float4(position, 1.0);
-	if (v.position.w != 0) {
-		out.position.z -= 0.0002 * out.position.w;
-	}
 	out.uv = float2(v.uv) / 65535.0;
 	out.tint = float3(v.color.rgb) / 255.0;
 	out.shade = float(v.color.a) / 255.0;
@@ -44,10 +41,10 @@ fragment float4 fragmentShader(
 									 min_filter::nearest,
 									 mip_filter::linear
 	);
-	color.rgb /= max(color.a, 0.001);
-	
 	
 	float4 color = texture.sample(textureSampler, in.uv);
+	
+	color.rgb /= max(color.a, 0.001);
 	
 	if (color.a < 0.5) {
 		discard_fragment();

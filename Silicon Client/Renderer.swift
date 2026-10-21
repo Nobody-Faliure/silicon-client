@@ -157,7 +157,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		// Set up depth testing
 		let depthDescriptor = MTLDepthStencilDescriptor()
-		depthDescriptor.depthCompareFunction = .less
+		depthDescriptor.depthCompareFunction = .lessEqual
 		depthDescriptor.isDepthWriteEnabled = true
 		
 		self.depthStencilState = device.makeDepthStencilState(

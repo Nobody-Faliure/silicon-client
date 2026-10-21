@@ -71,7 +71,7 @@ func buildSectionRenderMesh(
 			))
 		}
 		
-		return result
+		return result.sorted { !$0.textureName.contains("overlay") && $1.textureName.contains("overlay") }
 	}
 	
 	return SectionRenderMesh(

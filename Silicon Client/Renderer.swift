@@ -455,6 +455,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	func rebuildDirtySections() {
 		guard let modelFolder, let blockStateFolder else { return }
 		
+		clientWorld.hasNewWork = false
+		
 		let batch = Array(clientWorld.dirtySections.prefix(10000))
 		
 		for position in batch {
@@ -592,7 +594,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	// Called repeatedly by MTKView to draw each frame
 	func draw(in view: MTKView) {
-		if !clientWorld.dirtySections.isEmpty {
+		if clientWorld.hasNewWork {
 			rebuildDirtySections()
 		}
 		

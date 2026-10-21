@@ -9,7 +9,8 @@ struct SectionPosition: Hashable {
 final class ClientWorld {
 	var chunks: [Chunk] = []
 	
-	var dirtySections: Set<SectionPosition> = []
+	var dirtySections: Set<SectionPosition> = [] { didSet { hasNewWork = true } }
+	var hasNewWork = false
 	
 	static let noCollision: Set<String> = [
 		"minecraft:air"

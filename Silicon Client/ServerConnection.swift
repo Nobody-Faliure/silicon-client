@@ -13,7 +13,7 @@ final class ServerConnection {
 	private var connection: NWConnection?
 	private var incoming = Data()
 	private var protocolState: ProtocolState = .handshaking
-	private let log = PacketLog(fileName: "packets.bin")
+	private let log: PacketLog? = nil
 	
 	var onChunk: ((Chunk) -> Void)?
 	var onPosition: ((Player) -> Void)?

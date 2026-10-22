@@ -70,6 +70,10 @@ final class SiliconMTKView: MTKView {
 				captureMouse()
 			case 51:                                   // Backspace
 				if !input.chatText.isEmpty { input.chatText.removeLast() }
+			case 9 where event.modifierFlags.contains(.command):   // ⌘V: paste
+				  if let pasted = NSPasteboard.general.string(forType: .string) {
+						  input.chatText += pasted.replacingOccurrences(of: "\n", with: " ")
+				  }
 			default:                                   // any other key: add its letter
 				if let typed = event.characters,
 				   typed.unicodeScalars.allSatisfy({ $0.value >= 32 && $0.value < 0xF700 }) {

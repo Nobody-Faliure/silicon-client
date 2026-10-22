@@ -144,9 +144,10 @@ struct NBTReader {
 	}
 	
 	mutating func readNetworkRoot() -> NBTTag? {
-		guard readByte() == 10 else { return nil }
-		
-		return .compound(readCompound())
+		let type = readByte()
+		if type == 8 { return .string(readString()) }   // simple: "Unknown command"
+		guard type == 10 else { return nil }            // anything else: not a chat message
+		return .compound(readCompound())                // compound: {translate: …, with: […]}
 	}
 	
 	mutating func readVarInt() -> Int {

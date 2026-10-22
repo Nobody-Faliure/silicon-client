@@ -26,6 +26,7 @@ final class ServerConnection {
 	var onAttributes: ((_ entityID: Int, _ stats: [Int: (base: Double, modifiers: [AttributeModifier])]) -> Void)?
 	var onTime: ((_ ticks: Int, _ rate: Double) -> Void)?
 	var onBlockState: ((_ blockStateId: Int, _ x: Int, _ y: Int, _ z: Int) -> Void)?
+	var onSystemChat: ((_ text: String) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -343,16 +344,23 @@ final class ServerConnection {
 				}
 			}
 			
+		case (.play, 0x79):                                                   // system chat
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()                                 // packet id
+			guard let tag = reader.readNetworkRoot() else { break }
+			let text = Language.plainText(tag)
+			DispatchQueue.main.async { self.onSystemChat?(text) }
+			
 		case (.play, 0x71):
 			var reader = NBTReader(data: packet)
-			_ = reader.readVarInt()                // packet id
-			_ = reader.readLong()                  // world age, unused
+			_ = reader.readVarInt()                		// packet id
+			_ = reader.readLong()                  		// world age, unused
 			
-			if reader.readVarInt() > 0 {           // how many clocks (overworld has 1)
-				_ = reader.readVarInt()            // which clock
-				let ticks = reader.readVarLong()   // total ticks on that clock
-				_ = reader.readFloat()             // part of a tick, unused
-				let rate = Double(reader.readFloat())  // 1 = time moving, 0 = frozen
+			if reader.readVarInt() > 0 {           		// how many clocks (overworld has 1)
+				_ = reader.readVarInt()            		// which clock
+				let ticks = reader.readVarLong()   		// total ticks on that clock
+				_ = reader.readFloat()             		// part of a tick, unused
+				let rate = Double(reader.readFloat())  	// 1 = time moving, 0 = frozen
 				
 				DispatchQueue.main.async { self.onTime?(ticks, rate) }
 			}

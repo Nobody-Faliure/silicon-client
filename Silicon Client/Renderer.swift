@@ -317,7 +317,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 			guard let self else { return }
 			
 			clientWorld.receiveBlockUpdate(chunkX: x >> 4, chunkZ: z >> 4,
-									 x: x & 15, y: y, z: z & 15, id: UInt16(blockStateId))
+										   x: x & 15, y: y, z: z & 15, id: UInt16(blockStateId))
+		}
+		
+		serverConnection.onSystemChat = { [weak self] text in
+			self?.chat.messages.append(text)
 		}
 		
 		Task {
@@ -334,6 +338,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 				status.show("Downloading/Preparing block states")
 				let blockStateFolder = try await resourceDownloader.downloadAllBlockStateJSONs()
 				self.blockStateFolder = blockStateFolder
+				
+				status.show("Downloading/Preparing language")
+				Language.load(from: try await resourceDownloader.downloadLanguage())
 				
 				sectionMeshes = buildWorldMeshes(
 					from: clientWorld,

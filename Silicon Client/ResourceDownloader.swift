@@ -384,6 +384,34 @@ final class ResourceDownloader {
 		return blockStateFolder
 	}
 	
+	func downloadLanguage() async throws -> URL {
+		let file = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+			.appendingPathComponent("Silicon Client/assets/minecraft/lang/en_us.json")
+		
+		if FileManager.default.fileExists(atPath: file.path) { return file }
+		
+		let manifestData = try await fetchVersionManifest()
+		let manifest = try decodeVersionManifest(from: manifestData)
+		
+		guard let version = findMinecraftVersion(in: manifest) else {
+			throw NSError(domain: "ResourceDownloader", code: 40)
+		}
+		
+		let metadataData = try await fetchVersionMetadata(for: version)
+		let metadata = try decodeVersionMetadata(from: metadataData)
+		
+		let jarData = try await fetchClientJar(from: metadata)
+		let jarURL = try saveClientJar(jarData)
+		let archive = try Archive(url: jarURL, accessMode: .read)
+		
+		guard let entry = archive["assets/minecraft/lang/en_us.json"] else { throw NSError(domain: "ResourceDownloader", code: 41) }
+		try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+		var languageData = Data()
+		_ = try archive.extract(entry) { chunk in languageData.append(chunk) }
+		try languageData.write(to: file)
+		return file
+	}
+	
 	// Downloads the server JAR once and keeps it
 	func downloadServerJar() async throws -> URL {
 		let existing = FileManager.default.urls(

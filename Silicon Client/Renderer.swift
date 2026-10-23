@@ -817,6 +817,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 		renderEncoder.setDepthStencilState(translucentDepthState)
 		
 		for mesh in sectionMeshes {
+			if mesh.translucentMaterials.isEmpty { continue }
+			
 			if !isBoxOnScreen(mesh.corners, viewProjection) {
 				continue
 			}

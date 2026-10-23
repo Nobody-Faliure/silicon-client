@@ -40,7 +40,7 @@ enum BlockInfoTable {
 		let info = BlockInfo(
 			isAir: name == "minecraft:air",
 			fluidHeight: ChunkMesher.fluidHeight(of: state),
-			isWater: name == "minecraft:water",
+			isWater: ChunkMesher.fluidHeight(of: state) != nil && name != "minecraft:lava",
 			isLeaves: name.contains("leaves"),
 			variants: variants,
 			hidesNeighbours: hides

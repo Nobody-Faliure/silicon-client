@@ -34,6 +34,10 @@ struct ChunkMesher {
 	static func fluidHeight(of blockState: BlockState) -> Float? {
 		let id = blockState.block.id
 		
+		let alwaysWet: Set<String> = ["minecraft:seagrass", "minecraft:tall_seagrass", "minecraft:kelp", "minecraft:kelp_plant", "minecraft:bubble_column"]
+		
+		if alwaysWet.contains(id) || blockState.properties["waterlogged"] == "true" { return 8 / 9 }
+		
 		guard id == "minecraft:water" || id == "minecraft:lava" else {
 			return nil
 		}
@@ -329,7 +333,7 @@ struct ChunkMesher {
 							SIMD2<Float>(1, 1), SIMD2<Float>(0, 1)
 						]
 						
-						let texture = resolveTexture("#particle", in: resolved)
+						let texture = info.isWater ? "minecraft:block/water_still" : resolveTexture("#particle", in: resolved)
 						
 						// The flow texture sits beside the still one in the
 						// pack, so derive its name rather than typing a path.

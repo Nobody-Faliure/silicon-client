@@ -436,10 +436,10 @@ struct ChunkMesher {
 							* brightness(ofLight: lightLevel(x, y, z, SIMD3<Float>(0, -1, 0)))
 							
 							for i in [0, 3, 2, 2, 1, 0] {
-								emit(topTexture, Vertex(
-									position: positions[i],
+								emit(texture, Vertex(
+									position: under[i],
 									origin: sectionOrigin,
-									uv: topUVs[i],
+									uv: uvs[i],
 									tint: fluidTint,
 									shade: underShade,
 									depthBias: 0

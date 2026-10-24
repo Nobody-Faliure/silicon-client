@@ -135,6 +135,12 @@ final class SiliconMTKView: MTKView {
 		input.mouseDeltaY += Float(event.deltaY)
 	}
 	
+	override func mouseDown(with event: NSEvent) {
+		if mouseIsCaptured { input.leftClicked = true }
+	}
+	
+	override func mouseDragged(with event: NSEvent) { mouseMoved(with: event) }
+	
 	override func scrollWheel(with event: NSEvent) {
 		guard mouseIsCaptured else { return }
 		

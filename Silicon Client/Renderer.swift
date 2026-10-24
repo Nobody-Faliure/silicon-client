@@ -67,7 +67,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private var unspentTickTime: Double = 0
 	static let tickLength: Double = 0.05
 	
-	private var player = Player()
+	var player = Player()
 	
 	static let eyeHeight: Float = 1.62
 	
@@ -100,6 +100,11 @@ final class Renderer: NSObject, MTKViewDelegate {
 	private let meshQueue = DispatchQueue(
 		label: "dev.jasper.Silicon-Client.mesh",
 		qos: .userInitiated
+	)
+	
+	private let urgentMeshQueue = DispatchQueue(
+		label: "dev.jasper.Silicon-Client.urgent-mesh",
+		qos: .userInteractive
 	)
 	
 	var lookDirection: SIMD3<Float> {
@@ -477,7 +482,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		clientWorld.hasNewWork = false
 		
-		let batch = Array(clientWorld.dirtySections.prefix(10000))
+		let batch = Array(clientWorld.urgentSections) + Array(clientWorld.dirtySections.prefix(10000))
 		
 		for position in batch {
 			
@@ -491,9 +496,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 				  clientWorld.chunk(atX: position.chunkX, z: position.chunkZ - 1) != nil,
 				  let world = snapshot(around: position) else { continue }
 			
-			clientWorld.dirtySections.remove(position)
+			let wasUrgent = clientWorld.urgentSections.remove(position) != nil
+			guard clientWorld.dirtySections.remove(position) != nil || wasUrgent else { continue }
 			
-			meshQueue.async {
+			(wasUrgent ? urgentMeshQueue : meshQueue).async {
 				let started = CACurrentMediaTime()
 				
 				let mesh = buildSectionRenderMesh(
@@ -552,26 +558,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 		return copy
 	}
 	
-	func raycast() -> (hit: SIMD3<Int>, placeAt: SIMD3<Int>)? {
-		let reach: Float = 4.5
-		let stepSize: Float = 0.05
-		let direction = lookDirection
-		
-		var previous = SIMD3<Int>(cameraPosition.rounded(.down))
-		
-		for step in 0...Int(reach / stepSize) {
-			let point = cameraPosition + direction * (Float(step) * stepSize)
-			let block = SIMD3<Int>(point.rounded(.down))
-			if block == previous { continue }
-			if let state = clientWorld.getBlockState(worldX: block.x, y: block.y, worldZ: block.z),
-			   state.block != Block(id: "minecraft:air") {
-				return (block, previous)
-			}
-			previous = block
-		}
-		return nil
-	}
-	
 	private var standingOnLoadedChunk: Bool {
 		let chunkX = Int(player.position.x.rounded(.down)) >> 4
 		let chunkZ = Int(player.position.z.rounded(.down)) >> 4
@@ -603,6 +589,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 			input.pendingCommand = nil
 			serverConnection.sendCommand(command)
 		}
+		
+		handleClick()
 		
 		var player = self.player
 		player.yaw = -player.yaw * 180 / .pi

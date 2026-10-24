@@ -15,6 +15,9 @@ final class Input {
 	var ctrlPressed = false
 	
 	var spaceDoubleTapped = false          // Player reads this, then resets it
+	
+	var leftClicked = false                // Renderer reads this, then resets it
+	
 	private var lastSpaceTap: TimeInterval = 0
 
 	func spaceTapped(at time: TimeInterval) {

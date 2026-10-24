@@ -10,6 +10,7 @@ final class ClientWorld {
 	var chunks: [Chunk] = []
 	
 	var dirtySections: Set<SectionPosition> = [] { didSet { hasNewWork = true } }
+	var urgentSections: Set<SectionPosition> = [] { didSet { hasNewWork = true } }
 	var hasNewWork = false
 	
 	static let noCollision: Set<String> = [
@@ -106,16 +107,16 @@ final class ClientWorld {
 				
 				let section = chunks[i].locate(y).section
 				
-				dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section))
+				urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section))
 				
-				if x == 0 { dirtySections.insert(SectionPosition(chunkX: chunkX - 1, chunkZ: chunkZ, sectionIndex: section)) }
-				if x == 15 { dirtySections.insert(SectionPosition(chunkX: chunkX + 1, chunkZ: chunkZ, sectionIndex: section)) }
-				if z == 0  { dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ - 1, sectionIndex: section)) }
-				if z == 15 { dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ + 1, sectionIndex: section)) }
+				if x == 0 { urgentSections.insert(SectionPosition(chunkX: chunkX - 1, chunkZ: chunkZ, sectionIndex: section)) }
+				if x == 15 { urgentSections.insert(SectionPosition(chunkX: chunkX + 1, chunkZ: chunkZ, sectionIndex: section)) }
+				if z == 0  { urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ - 1, sectionIndex: section)) }
+				if z == 15 { urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ + 1, sectionIndex: section)) }
 				
 				let localY = chunks[i].locate(y).localY
-				if localY == 0, section > 0 { dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section - 1)) }
-				if localY == 15, section < Chunk.sectionCount - 1 { dirtySections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section + 1)) }
+				if localY == 0, section > 0 { urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section - 1)) }
+				if localY == 15, section < Chunk.sectionCount - 1 { urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section + 1)) }
 				
 				return
 			}

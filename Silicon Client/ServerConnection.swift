@@ -370,6 +370,24 @@ final class ServerConnection {
 		}
 	}
 	
+	func send(_ payload: Data) {
+		var packet = Data()
+		VarInt.write(payload.count, to: &packet)
+		packet.append(payload)
+		connection?.send(content: packet, completion: .contentProcessed { _ in })
+	}
+	
+	private var blockSequence = 0
+	func sendPlayerAction(status: Int, block: SIMD3<Int>, face: Int) {
+		var payload = Data(); VarInt.write(0x29, to: &payload); VarInt.write(status, to: &payload); VarInt.writePosition(block, to: &payload)
+		payload.append(UInt8(face)); blockSequence += 1; VarInt.write(blockSequence, to: &payload)
+		send(payload)
+	}
+	
+	func sendSwing() {
+		var payload = Data(); VarInt.write(0x3f, to: &payload); VarInt.write(0, to: &payload); send(payload)
+	}
+	
 	func sendLoginStart(username: String) {
 		var payload = Data()
 		

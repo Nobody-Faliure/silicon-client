@@ -55,4 +55,10 @@ struct VarInt {
 		var bits = value.bitPattern.bigEndian
 		withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
 	}
+	
+	static func writePosition(_ block: SIMD3<Int>, to data: inout Data) {
+		let packed = Int64(block.x & 0x3FFFFFF) << 38 | Int64(block.z & 0x3FFFFFF) << 12 | Int64(block.y & 0xFFF)
+		var bits = packed.bigEndian
+		withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
+	}
 }

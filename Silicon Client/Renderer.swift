@@ -42,6 +42,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let skyPipelineState: MTLRenderPipelineState
 	let skyDepthState: MTLDepthStencilState
 	
+	let hudPipelineState: MTLRenderPipelineState
+	
+	var crosshairTexture: MTLTexture?
+	
 	let minecraftServer = MinecraftServer()
 	let serverConnection = ServerConnection()
 	
@@ -202,6 +206,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		self.skyPipelineState = try! device.makeRenderPipelineState(descriptor: skyDescriptor)
 		
+		skyDescriptor.vertexFunction = library.makeFunction(name: "hudVertex")!
+		skyDescriptor.fragmentFunction = library.makeFunction(name: "hudFragment")!
+		skyDescriptor.colorAttachments[0].isBlendingEnabled = false
+		
+		self.hudPipelineState = try! device.makeRenderPipelineState(descriptor: skyDescriptor)
+		
 		let skyDepthDescriptor = MTLDepthStencilDescriptor()
 		skyDepthDescriptor.depthCompareFunction = .always
 		skyDepthDescriptor.isDepthWriteEnabled = false
@@ -330,6 +340,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 				let textureFolder = try await resourceDownloader.downloadAllBlockAndItemTextures()
 				ChunkMesher.textureFolder = textureFolder.appendingPathComponent("block")
 				BiomeRegistry.colormapFolder = textureFolder
+				
+				let crosshair = self.loadMinecraftTexture(from: textureFolder.appendingPathComponent("gui/sprites/hud/crosshair.png"), named: "crosshair")
+				DispatchQueue.main.async { self.crosshairTexture = crosshair }
 				
 				status.show("Downloading/Preparing block models")
 				let modelFolder = try await resourceDownloader.downloadAllModelJSONs()
@@ -852,6 +865,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 					vertexCount: material.vertexCount
 				)
 			}
+		}
+		
+		if let crosshairTexture, player.gameMode != .spectator {
+			let s = view.drawableSize, scale = Float(max(1, min(Int(s.width) / 320, Int(s.height) / 240)))
+			var halfSize = SIMD2<Float>(15 * scale / Float(s.width), 15 * scale / Float(s.height))
+			renderEncoder.setRenderPipelineState(hudPipelineState); renderEncoder.setDepthStencilState(skyDepthState); renderEncoder.setCullMode(.none)
+			renderEncoder.setVertexBytes(&halfSize, length: 8, index: 0); renderEncoder.setFragmentTexture(crosshairTexture, index: 0); renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
 		}
 		
 		renderEncoder.endEncoding()

@@ -83,3 +83,17 @@ fragment float4 skyFragment(
 	return float4(pow(color.rgb, float3(2.2)), color.a * in.strength);
 }
 
+struct HudOut { float4 position [[position]]; float2 pictureSpot; };
+
+constant float2 hudCorners[6] = { {0,0}, {1,0}, {0,1}, {0,1}, {1,0}, {1,1} };
+
+vertex HudOut hudVertex(uint id [[vertex_id]], constant float2& halfSize [[buffer(0)]]) {
+	float2 c = hudCorners[id]; return { float4((c * 2 - 1) * halfSize, 0, 1), float2(c.x, 1 - c.y) };
+}
+
+fragment float4 hudFragment(HudOut pixel [[stage_in]], texture2d<float> crosshairPicture [[texture(0)]], float4 background [[color(0)]]) {
+	float3 crosshairColor = crosshairPicture.sample(sampler(filter::nearest), pixel.pictureSpot).rgb;
+	float3 storedBackground = pow(background.rgb, 1.0 / 2.2);
+	float3 inverted = crosshairColor * (1 - storedBackground) + storedBackground * (1 - crosshairColor);
+	return float4(pow(inverted, 2.2), 1);
+}

@@ -172,9 +172,12 @@ final class ResourceDownloader {
 			let isColormap =
 			path.hasPrefix("assets/minecraft/textures/colormap/")
 			
+			let isHudSprite =
+			path.hasPrefix("assets/minecraft/textures/gui/sprites/hud/")
+			
 			// Ignore everything except block/item PNGs
 			guard
-				(isBlockTexture || isItemTexture || isColormap),
+				(isBlockTexture || isItemTexture || isColormap || isHudSprite),
 				path.hasSuffix(".png") || path.hasSuffix(".mcmeta")
 					else {
 				continue

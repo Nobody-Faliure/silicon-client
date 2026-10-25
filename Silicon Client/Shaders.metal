@@ -97,3 +97,40 @@ fragment float4 hudFragment(HudOut pixel [[stage_in]], texture2d<float> crosshai
 	float3 inverted = crosshairColor * (1 - storedBackground) + storedBackground * (1 - crosshairColor);
 	return float4(pow(inverted, 2.2), 1);
 }
+
+struct OutlineOut { float4 position [[position]]; };
+constant float3 outlineEdges[24] = {  // 12 edges, each as 2 ends (A, B) on a 0–1 cube
+	{0,0,0},{1,0,0}, {0,0,1},{1,0,1}, {0,0,0},{0,0,1}, {1,0,0},{1,0,1},  // bottom 4
+	{0,1,0},{1,1,0}, {0,1,1},{1,1,1}, {0,1,0},{0,1,1}, {1,1,0},{1,1,1},  // top 4
+	{0,0,0},{0,1,0}, {1,0,0},{1,1,0}, {0,0,1},{0,1,1}, {1,0,1},{1,1,1}   // vertical 4
+};
+
+// Offsets from the edge's two ends (A, B) to get the 6 vertices of its 2 triangles.
+// x = which end (0 = A, 1 = B), y = which side of the line it's nudged to (+1 or -1)
+constant float2 thickLineCorners[6] = {
+	{0, 1}, {1, 1}, {0, -1},   // triangle 1
+	{0, -1}, {1, 1}, {1, -1}   // triangle 2
+};
+
+vertex OutlineOut outlineVertex(
+	uint vertexNumber [[vertex_id]],
+	constant float4x4& viewProjection [[buffer(0)]],
+	constant packed_float3& blockPosition [[buffer(1)]],
+	constant float2& screenSize [[buffer(2)]]
+) {
+	uint edge = vertexNumber / 6;
+	float2 cornerOffset = thickLineCorners[vertexNumber % 6];
+	float3 worldA = float3(blockPosition) + outlineEdges[edge * 2] * 1.004 - 0.002;
+	float3 worldB = float3(blockPosition) + outlineEdges[edge * 2 + 1] * 1.004 - 0.002;
+	float4 screenA = viewProjection * float4(worldA, 1);
+	float4 screenB = viewProjection * float4(worldB, 1);
+	float2 direction = normalize((screenB.xy / screenB.w - screenA.xy / screenA.w) * screenSize);
+	float lineWidth = max(2.5, screenSize.x / 1920 * 2.5);
+	float4 position = cornerOffset.x == 0 ? screenA : screenB;
+	position.xy += float2(-direction.y, direction.x) * cornerOffset.y * lineWidth / screenSize * position.w;
+	return { position };
+}
+
+fragment float4 outlineFragment() {
+	return float4(0, 0, 0, 0.675);  // black; 0.675 here looks like vanilla's 0.4
+}

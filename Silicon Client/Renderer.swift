@@ -393,6 +393,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 				
 				status.show("Extracting block hardness data")
 				MinecraftServer.generateHardness(jar: serverJar)
+				DispatchQueue.main.async { BlockHardness.load(jar: serverJar) }
 				
 				status.show("Starting the server")
 				minecraftServer.start(

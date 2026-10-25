@@ -15,7 +15,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		56E0A1C1305A100000A1B2C3 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+		56E0A1C1305A100000A1B2C3 /* Exceptions for "Silicon Client" folder in "Copy Bundle Resources" phase from "Silicon Client" target */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = 5676D5853037D0F900BC45F6 /* Resources */;
 			membershipExceptions = (
@@ -28,7 +28,7 @@
 		5676D5893037D0F900BC45F6 /* Silicon Client */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				56E0A1C1305A100000A1B2C3 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */,
+				56E0A1C1305A100000A1B2C3 /* Exceptions for "Silicon Client" folder in "Copy Bundle Resources" phase from "Silicon Client" target */,
 			);
 			path = "Silicon Client";
 			sourceTree = "<group>";

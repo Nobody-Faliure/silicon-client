@@ -14,9 +14,22 @@
 		5676D5873037D0F900BC45F6 /* Silicon Client.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Silicon Client.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		56E0A1C1305A100000A1B2C3 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = 5676D5853037D0F900BC45F6 /* Resources */;
+			membershipExceptions = (
+				HardnessExtractor.java,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5676D5893037D0F900BC45F6 /* Silicon Client */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				56E0A1C1305A100000A1B2C3 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */,
+			);
 			path = "Silicon Client";
 			sourceTree = "<group>";
 		};

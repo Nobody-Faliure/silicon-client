@@ -391,6 +391,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 				status.show("Reading block data")
 				MinecraftServer.generateReports(jar: serverJar)
 				
+				status.show("Extracting block hardness data")
+				MinecraftServer.generateHardness(jar: serverJar)
+				
 				status.show("Starting the server")
 				minecraftServer.start(
 					jar: serverJar,

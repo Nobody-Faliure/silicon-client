@@ -186,6 +186,30 @@ final class MinecraftServer {
 		}
 	}
 	
+	static func generateHardness(jar: URL) {
+		let versionFolder = jar.deletingLastPathComponent()
+		let output = versionFolder.appendingPathComponent("GeneratedData/silicon/block-hardness.json")
+		if FileManager.default.fileExists(atPath: output.path) { return }
+		try? FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+		
+		let jarFolders = ["libraries", "versions"].map { versionFolder.appendingPathComponent($0) }
+		let jars = jarFolders.flatMap { folder in
+			FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil)?.allObjects as? [URL] ?? []
+		}
+		let classpath = jars.filter { $0.pathExtension == "jar" }.map(\.path).joined(separator: ":")
+		guard let extractor = Bundle.main.url(forResource: "HardnessExtractor", withExtension: "java") else { return }
+		let process = Process()
+		process.executableURL = URL(fileURLWithPath: "/usr/bin/java")
+		process.arguments = ["-cp", classpath, extractor.path, output.path]
+		
+		do {
+			try process.run()
+			process.waitUntilExit()
+		} catch {
+			print("[hardness] could not run the extractor: \(error)")
+		}
+	}
+	
 	func stop() {
 		if process?.isRunning == true {
 			process?.terminate()

@@ -120,6 +120,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	var sectionMeshes: [SectionRenderMesh] = []
 	
+	var meshStamps: [SectionPosition: UInt64] = [:]  // newest queued time per section, only while meshing
+	
 	var modelFolder: URL?
 	var blockStateFolder: URL?
 	
@@ -499,6 +501,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 			let wasUrgent = clientWorld.urgentSections.remove(position) != nil
 			guard clientWorld.dirtySections.remove(position) != nil || wasUrgent else { continue }
 			
+			let stamp = DispatchTime.now().uptimeNanoseconds
+			meshStamps[position] = stamp
+			
 			(wasUrgent ? urgentMeshQueue : meshQueue).async {
 				let started = CACurrentMediaTime()
 				
@@ -516,6 +521,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 				self.sectionsMeshedThisSecond += 1
 				
 				DispatchQueue.main.async {
+					guard self.meshStamps[position] == stamp else { return }  // a newer job is coming, so drop this one
+					self.meshStamps[position] = nil                            // newest job is done, clear its entry
+					
 					guard self.clientWorld.chunk(atX: position.chunkX, z: position.chunkZ) != nil else { return }
 					self.sectionMeshes.removeAll {
 						$0.chunkX == position.chunkX

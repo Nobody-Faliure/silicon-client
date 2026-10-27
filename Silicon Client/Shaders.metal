@@ -137,3 +137,17 @@ vertex OutlineOut outlineVertex(
 fragment float4 outlineFragment() {
 	return float4(0, 0, 0, 0.675);  // black; 0.675 here looks like vanilla's 0.4
 }
+
+fragment float4 breakingFragment(
+								 VertexOut in [[stage_in]],
+								 texture2d<float> texture [[texture(0)]]
+								 ) {
+	constexpr sampler textureSampler(mag_filter::nearest, min_filter::nearest);
+	float4 color = texture.sample(textureSampler, in.uv);
+	
+	if (color.a < 0.5) {
+		discard_fragment();
+	}
+	
+	return float4(color.rgb * 2.3, 1);   // 2.3 = 2^2.2 / 2, so the darkening matches vanilla
+}

@@ -39,6 +39,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let translucentPipelineState: MTLRenderPipelineState
 	let translucentDepthState: MTLDepthStencilState
 	
+	let breakingPipelineState: MTLRenderPipelineState
+	
 	let skyPipelineState: MTLRenderPipelineState
 	let skyDepthState: MTLDepthStencilState
 	
@@ -190,6 +192,15 @@ final class Renderer: NSObject, MTKViewDelegate {
 		pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
 		
 		self.translucentPipelineState = try! device.makeRenderPipelineState(
+			descriptor: pipelineDescriptor
+		)
+		
+		pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .destinationColor
+		pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .sourceColor
+		
+		pipelineDescriptor.fragmentFunction = library.makeFunction(name: "breakingFragment")!
+		
+		self.breakingPipelineState = try! device.makeRenderPipelineState(
 			descriptor: pipelineDescriptor
 		)
 		
@@ -876,6 +887,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 		}
 		
 		if let breakingOverlay, let block = player.diggingBlock {
+			renderEncoder.setRenderPipelineState(breakingPipelineState)
 			var origin = SIMD3<Float>(block)
 			let stage = min(9, Int(player.digProgress * 10))
 			renderEncoder.setVertexBytes(&origin, length: 12, index: 3)

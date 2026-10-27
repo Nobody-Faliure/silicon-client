@@ -11,12 +11,12 @@ final class ResourceDownloader {
 	// Named after the version, so a new version downloads again.
 	func isFinished(_ folder: URL) -> Bool {
 		FileManager.default.fileExists(
-			atPath: folder.appendingPathComponent(".done-\(minecraftVersion)").path
+			atPath: folder.appendingPathComponent(".done-\(minecraftVersion)-\(SiliconVersion.current)").path
 		)
 	}
 	
 	func markFinished(_ folder: URL) throws {
-		try Data().write(to: folder.appendingPathComponent(".done-\(minecraftVersion)"))
+		try Data().write(to: folder.appendingPathComponent(".done-\(minecraftVersion)-\(SiliconVersion.current)"))
 	}
 	
 	// Mojang's list of all Minecraft versions

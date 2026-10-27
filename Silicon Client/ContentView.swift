@@ -29,7 +29,7 @@ struct ContentView: View {
 		} else {
 			VStack {
 				Text("Silicon Client")
-				Text("0.0.1-dev.1")
+				Text(SiliconVersion.current)
 
 				Button("Singleplayer") {
 					isPlaying = true

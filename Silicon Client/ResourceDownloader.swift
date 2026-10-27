@@ -16,6 +16,10 @@ final class ResourceDownloader {
 	}
 	
 	func markFinished(_ folder: URL) throws {
+		let oldFiles = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+		for name in oldFiles where name.hasPrefix(".done-") {
+			try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+		}
 		try Data().write(to: folder.appendingPathComponent(".done-\(minecraftVersion)-\(SiliconVersion.current)"))
 	}
 	

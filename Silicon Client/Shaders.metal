@@ -26,6 +26,9 @@ vertex VertexOut vertexShader(
 	
 	VertexOut out;
 	out.position = projectionMatrix * viewMatrix * float4(position, 1.0);
+	if (v.position.w == 1) {
+		out.position.z -= 0.00001 * out.position.w;   // overlay: a hair closer, so it wins over the face under it
+	}
 	out.uv = float2(v.uv) / 65535.0;
 	out.tint = float3(v.color.rgb) / 255.0;
 	out.shade = float(v.color.a) / 255.0;

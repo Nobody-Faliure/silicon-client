@@ -1,16 +1,16 @@
 import Foundation
 
 extension Renderer {
-	func breakingOverlayVertices(at block: SIMD3<Int>) -> [Vertex] {
+	func blockModel(at block: SIMD3<Int>) -> (variant: MinecraftBlockStateVariant, model: ResolvedModel)? {
 		guard let modelFolder, let blockStateFolder,
 			  let blockID = clientWorld.blockID(worldX: block.x, y: block.y, worldZ: block.z)
-				else { return [] }
+				else { return nil }
 		let info = BlockInfoTable.info(
 			blockID,
 			blockStateFolder: blockStateFolder,
 			modelFolder: modelFolder
 		)
-		guard let options = info.variants?.options else { return [] }
+		guard let options = info.variants?.options else { return nil }
 		
 		let variant = options[ChunkMesher.variantIndex(
 			x: block.x & 15,
@@ -23,6 +23,32 @@ extension Renderer {
 			modelName: variant.model,
 			modelFolder: modelFolder
 		)
+		
+		return (variant, model)
+	}
+	
+	func outlineBoxes(at block: SIMD3<Int>) -> [(min: SIMD3<Float>, size: SIMD3<Float>)] {
+		guard let shape = blockModel(at: block) else { return [] }
+		let origin = SIMD3<Float>(block)
+		let turnX = shape.variant.x ?? 0
+		let turnY = shape.variant.y ?? 0
+		
+		let center = origin + 0.5
+		return shape.model.elements.map { element in
+			let from = origin + SIMD3<Float>(element.from) / 16
+			let to = origin + SIMD3<Float>(element.to) / 16
+			let turnedFrom = ChunkMesher.rotate(turnX, turnY, around: center, from)
+			let turnedTo = ChunkMesher.rotate(turnX, turnY, around: center, to)
+			let boxMin = pointwiseMin(turnedFrom, turnedTo)
+			return (boxMin, pointwiseMax(turnedFrom, turnedTo) - boxMin)
+		}
+	}
+	
+	func breakingOverlayVertices(at block: SIMD3<Int>) -> [Vertex] {
+		guard let shape = blockModel(at: block) else { return [] }
+		let variant = shape.variant
+		let model = shape.model
+		
 		let origin = SIMD3<Float>(block)
 		let center = origin + 0.5
 		

@@ -902,16 +902,25 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		if player.gameMode != .spectator, let target = raycast() {
 			var outlineMatrix = viewProjection
-			var blockPosition = SIMD3<Float>(target.hit)
 			var screenSize = SIMD2<Float>(Float(view.drawableSize.width), Float(view.drawableSize.height))
 			renderEncoder.setRenderPipelineState(outlinePipelineState)
 			renderEncoder.setDepthStencilState(translucentDepthState)
 			
 			renderEncoder.setCullMode(.none)
-				 renderEncoder.setVertexBytes(&outlineMatrix, length: MemoryLayout<simd_float4x4>.stride, index: 0)
-				 renderEncoder.setVertexBytes(&blockPosition, length: 12, index: 1)
-				 renderEncoder.setVertexBytes(&screenSize, length: 8, index: 2)
-				 renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 72)
+			renderEncoder.setVertexBytes(&outlineMatrix, length: MemoryLayout<simd_float4x4>.stride, index: 0)
+			renderEncoder.setVertexBytes(&screenSize, length: 8, index: 2)
+			
+			var boxes = outlineBoxes(at: target.hit)
+			if boxes.isEmpty {
+				boxes = [(SIMD3<Float>(target.hit), SIMD3<Float>(1, 1, 1))]
+			}
+			for box in boxes {
+				var boxMin = box.min
+				var boxSize = box.size
+				renderEncoder.setVertexBytes(&boxMin, length: 12, index: 1)
+				renderEncoder.setVertexBytes(&boxSize, length: 12, index: 3)
+				renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 72)
+			}
 		}
 		
 		if let crosshairTexture, player.gameMode != .spectator {

@@ -116,15 +116,16 @@ constant float2 thickLineCorners[6] = {
 };
 
 vertex OutlineOut outlineVertex(
-	uint vertexNumber [[vertex_id]],
-	constant float4x4& viewProjection [[buffer(0)]],
-	constant packed_float3& blockPosition [[buffer(1)]],
-	constant float2& screenSize [[buffer(2)]]
-) {
+								uint vertexNumber [[vertex_id]],
+								constant float4x4& viewProjection [[buffer(0)]],
+								constant packed_float3& boxMin [[buffer(1)]],
+								constant float2& screenSize [[buffer(2)]],
+								constant packed_float3& boxSize [[buffer(3)]]
+								) {
 	uint edge = vertexNumber / 6;
 	float2 cornerOffset = thickLineCorners[vertexNumber % 6];
-	float3 worldA = float3(blockPosition) + outlineEdges[edge * 2] * 1.004 - 0.002;
-	float3 worldB = float3(blockPosition) + outlineEdges[edge * 2 + 1] * 1.004 - 0.002;
+	float3 worldA = float3(boxMin) - 0.002 + outlineEdges[edge * 2] * (float3(boxSize) + 0.004);
+	float3 worldB = float3(boxMin) - 0.002 + outlineEdges[edge * 2 + 1] * (float3(boxSize) + 0.004);
 	float4 screenA = viewProjection * float4(worldA, 1);
 	float4 screenB = viewProjection * float4(worldB, 1);
 	float2 direction = normalize((screenB.xy / screenB.w - screenA.xy / screenA.w) * screenSize);

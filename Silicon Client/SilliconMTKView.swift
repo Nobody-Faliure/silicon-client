@@ -35,6 +35,7 @@ final class SiliconMTKView: MTKView {
 		guard mouseIsCaptured else { return }
 		
 		mouseIsCaptured = false
+		input.leftHeld = false    // the mouseUp may never arrive once the mouse is released
 		CGAssociateMouseAndMouseCursorPosition(1)
 		NSCursor.unhide()
 		
@@ -136,8 +137,13 @@ final class SiliconMTKView: MTKView {
 	}
 	
 	override func mouseDown(with event: NSEvent) {
-		if mouseIsCaptured { input.leftClicked = true }
+		if mouseIsCaptured {
+			input.leftClicked = true
+			input.leftHeld = true
+		}
 	}
+
+	override func mouseUp(with event: NSEvent) { input.leftHeld = false }
 	
 	override func mouseDragged(with event: NSEvent) { mouseMoved(with: event) }
 	

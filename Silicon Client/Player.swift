@@ -23,6 +23,10 @@ struct Player {
 	var isSprinting = false
 	
 	var gameMode: GameMode = .survival
+
+	var diggingBlock: SIMD3<Int>?    // block being dug, nil when not digging
+	var digProgress: Float = 0       // 0 = just started, 1 = breaks
+	var digDelay = 0                 // ticks to wait before the next block can start
 	
 	var hitBox: Hitbox {
 		Hitbox(boxes: [Box(min: position - [0.3, 0, 0.3], max: position + [0.3, 1.8, 0.3])])

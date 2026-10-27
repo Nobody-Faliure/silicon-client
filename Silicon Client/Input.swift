@@ -17,6 +17,7 @@ final class Input {
 	var spaceDoubleTapped = false          // Player reads this, then resets it
 	
 	var leftClicked = false                // Renderer reads this, then resets it
+	var leftHeld = false                   // true while the left button is down
 	
 	private var lastSpaceTap: TimeInterval = 0
 

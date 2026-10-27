@@ -609,7 +609,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 			serverConnection.sendCommand(command)
 		}
 		
-		handleClick()
+		updateDigging()
 		
 		var player = self.player
 		player.yaw = -player.yaw * 180 / .pi

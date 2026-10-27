@@ -28,10 +28,36 @@ extension Renderer {
 		if side.z != 0 { return side.z < 0 ? 2 : 3 }
 		return side.x < 0 ? 4 : 5
 	}
-	
-	func handleClick() {
-		guard input.leftClicked else { return }; input.leftClicked = false
-		guard player.gameMode == .creative || player.gameMode == .survival, let target = raycast() else { return }
-		serverConnection.sendPlayerAction(status: 0, block: target.hit, face: Renderer.face(from: target.placeAt &- target.hit)); serverConnection.sendSwing()
+
+	func updateDigging() {
+		if player.digDelay > 0 {
+			player.digDelay -= 1
+			return
+		}
+		let canBreak = player.gameMode == .creative || player.gameMode == .survival
+		let target = input.leftHeld && canBreak ? raycast() : nil
+		if let oldBlock = player.diggingBlock, oldBlock != target?.hit {
+			serverConnection.sendPlayerAction(status: 1, block: oldBlock, face: 0)
+			player.diggingBlock = nil
+		}
+		guard let target else { return }
+		let face = Renderer.face(from: target.placeAt &- target.hit)
+		guard let state = clientWorld.getBlockState(worldX: target.hit.x, y: target.hit.y, worldZ: target.hit.z) else { return }
+		let progressPerTick = player.gameMode == .creative ? 1 : BlockHardness.progressPerTick(for: state.block.id)
+		
+		if player.diggingBlock == nil {
+			serverConnection.sendPlayerAction(status: 0, block: target.hit, face: face)
+			player.diggingBlock = target.hit
+			player.digProgress = 0
+		}
+
+		serverConnection.sendSwing()
+		player.digProgress += progressPerTick
+		guard player.digProgress >= 1 else { return }
+		player.diggingBlock = nil
+		player.digDelay = 5
+		if progressPerTick < 1 {
+			serverConnection.sendPlayerAction(status: 2, block: target.hit, face: face)
+		}
 	}
 }

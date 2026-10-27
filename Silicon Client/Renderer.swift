@@ -123,6 +123,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	var sectionMeshes: [SectionRenderMesh] = []
 	
 	var meshStamps: [SectionPosition: UInt64] = [:]  // newest queued time per section, only while meshing
+	var breakingOverlay: MTLBuffer?   // crack faces of the block being dug, nil when not digging
 	
 	var modelFolder: URL?
 	var blockStateFolder: URL?
@@ -872,6 +873,19 @@ final class Renderer: NSObject, MTKViewDelegate {
 					vertexCount: material.vertexCount
 				)
 			}
+		}
+		
+		if let breakingOverlay, let block = player.diggingBlock {
+			var origin = SIMD3<Float>(block)
+			let stage = min(9, Int(player.digProgress * 10))
+			renderEncoder.setVertexBytes(&origin, length: 12, index: 3)
+			renderEncoder.setFragmentTexture(texture(named: "destroy_stage_\(stage)"), index: 0)
+			renderEncoder.setVertexBuffer(breakingOverlay, offset: 0, index: 0)
+			renderEncoder.drawPrimitives(
+				type: .triangle,
+				vertexStart: 0,
+				vertexCount: breakingOverlay.length / MemoryLayout<Vertex>.stride
+			)
 		}
 		
 		if player.gameMode != .spectator, let target = raycast() {

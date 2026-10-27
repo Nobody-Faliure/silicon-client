@@ -1,4 +1,4 @@
-import Foundation
+import Metal
 
 extension Renderer {
 	static let notTargetable: Set<String> = ["minecraft:air", "minecraft:cave_air", "minecraft:void_air", "minecraft:water", "minecraft:lava", "minecraft:bubble_column"]
@@ -49,6 +49,11 @@ extension Renderer {
 			serverConnection.sendPlayerAction(status: 0, block: target.hit, face: face)
 			player.diggingBlock = target.hit
 			player.digProgress = 0
+			let vertices = breakingOverlayVertices(at: target.hit)
+			breakingOverlay = vertices.isEmpty ? nil : device.makeBuffer(
+				bytes: vertices,
+				length: MemoryLayout<Vertex>.stride * vertices.count
+			)
 		}
 
 		serverConnection.sendSwing()

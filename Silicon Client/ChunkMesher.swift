@@ -522,7 +522,7 @@ struct ChunkMesher {
 								direction(of: faceKey)
 							)
 							
-							let faceShade = shade(of: faceKey)
+							let faceShade = shade(of: rotate(xRot, yRot, around: SIMD3<Float>(0, 0, 0), direction(of: faceKey)))
 							* brightness(ofLight: lightLevel(x, y, z, lightDirection))
 							
 							let faceTint: SIMD3<Float> = {

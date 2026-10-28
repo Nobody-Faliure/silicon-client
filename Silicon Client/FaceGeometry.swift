@@ -146,4 +146,10 @@ extension ChunkMesher {
 		default:               return 1.0
 		}
 	}
+	
+	static func shade(of direction: SIMD3<Float>) -> Float {
+		if direction.y > 0 { return 1.0 }          // up
+		if direction.y < 0 { return 0.5 }          // down
+		return direction.z != 0 ? 0.8 : 0.6        // north/south : east/west
+	}
 }

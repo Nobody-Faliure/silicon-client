@@ -19,7 +19,7 @@
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = 5676D5853037D0F900BC45F6 /* Resources */;
 			membershipExceptions = (
-				HardnessExtractor.java,
+				BlockDataExtractor.java,
 			);
 		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */

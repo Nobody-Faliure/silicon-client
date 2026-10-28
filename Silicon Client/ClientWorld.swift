@@ -29,6 +29,27 @@ final class ClientWorld {
 		return chunks.first { $0.chunkX == x && $0.chunkZ == z }
 	}
 	
+	func locate(_ position: SIMD3<Int>) -> (chunk: Int, section: Int, index: Int)? {
+		guard position.y >= Chunk.minY,
+			  position.y < Chunk.minY + Chunk.sectionCount * Section.height,
+			  let chunk = chunks.firstIndex(where: { chunk in chunk.chunkX == position.x >> 4 && chunk.chunkZ == position.z >> 4 })
+				else { return nil }
+		
+		let (section, localY) = chunks[chunk].locate(position.y)
+		let index = chunks[chunk].sections[section].index(x: position.x & 15, y: localY, z: position.z & 15)
+		return (chunk, section, index)
+	}
+	
+	func markForRedraw(_ position: SIMD3<Int>) {
+		let offsets: [SIMD3<Int>] = [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
+		for offset in offsets {
+			let block = position &+ offset
+			guard block.y >= Chunk.minY, block.y < Chunk.minY + Chunk.sectionCount * Section.height else { continue }
+			let section = (block.y - Chunk.minY) >> 4
+			urgentSections.insert(SectionPosition(chunkX: block.x >> 4, chunkZ: block.z >> 4, sectionIndex: section))
+		}
+	}
+	
 	func getBlockState(worldX: Int, y: Int, worldZ: Int) -> BlockState? {
 		guard y >= Chunk.minY, y < Chunk.minY + Chunk.sectionCount * Section.height else {
 			return nil
@@ -105,18 +126,9 @@ final class ClientWorld {
 					id: id
 				)
 				
-				let section = chunks[i].locate(y).section
-				
-				urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section))
-				
-				if x == 0 { urgentSections.insert(SectionPosition(chunkX: chunkX - 1, chunkZ: chunkZ, sectionIndex: section)) }
-				if x == 15 { urgentSections.insert(SectionPosition(chunkX: chunkX + 1, chunkZ: chunkZ, sectionIndex: section)) }
-				if z == 0  { urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ - 1, sectionIndex: section)) }
-				if z == 15 { urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ + 1, sectionIndex: section)) }
-				
-				let localY = chunks[i].locate(y).localY
-				if localY == 0, section > 0 { urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section - 1)) }
-				if localY == 15, section < Chunk.sectionCount - 1 { urgentSections.insert(SectionPosition(chunkX: chunkX, chunkZ: chunkZ, sectionIndex: section + 1)) }
+				let position = SIMD3(chunkX * 16 + x, y, chunkZ * 16 + z)
+				markForRedraw(position)
+				LightEngine.relightAfterChange(at: position, in: self)
 				
 				return
 			}

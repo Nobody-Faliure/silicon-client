@@ -14,23 +14,25 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class HardnessExtractor {
+public class BlockDataExtractor {
 	public static void main(String[] arguments) throws Exception {
 		// 1. Bootstrap: let the game build its lists of blocks, items, entities
 		SharedConstants.tryDetectVersion();
 		Bootstrap.bootStrap();
-
+		
 		// 2. Ask every block for its values
-		StringBuilder json = new StringBuilder("{\n");
-		for (Block block : BuiltInRegistries.BLOCK) {
-			BlockState state = block.defaultBlockState();
-			String name = BuiltInRegistries.BLOCK.getKey(block).toString();
+		StringBuilder json = new StringBuilder("[\n");
+		for (int id = 0; id < Block.BLOCK_STATE_REGISTRY.size(); id++) {
+			BlockState state = Block.BLOCK_STATE_REGISTRY.byId(id);
 			float hardness = state.getDestroySpeed(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
 			boolean needsTool = state.requiresCorrectToolForDrops();
-			json.append("  \"" + name + "\": {\"hardness\": " + hardness + ", \"needsTool\": " + needsTool + "},\n");
+			json.append("  {\"hardness\": " + hardness + ", \"needsTool\": " + needsTool
+						+ ", \"lightDampening\": " + state.getLightDampening()
+						+ ", \"lightEmission\": " + state.getLightEmission()
+						+ ", \"skylightDown\": " + state.propagatesSkylightDown() + "},\n");
 		}
 		json.setLength(json.length() - 2);  // drop the last ",\n" (JSON forbids a trailing comma)
-		json.append("\n}\n");
+		json.append("\n]\n");
 
 		// 3. Spit it out
 		Files.writeString(Path.of(arguments[0]), json);

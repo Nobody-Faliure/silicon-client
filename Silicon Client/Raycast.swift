@@ -42,8 +42,8 @@ extension Renderer {
 		}
 		guard let target else { return }
 		let face = Renderer.face(from: target.placeAt &- target.hit)
-		guard let state = clientWorld.getBlockState(worldX: target.hit.x, y: target.hit.y, worldZ: target.hit.z) else { return }
-		let progressPerTick = player.gameMode == .creative ? 1 : BlockHardness.progressPerTick(for: state.block.id)
+		guard let stateID = clientWorld.blockID(worldX: target.hit.x, y: target.hit.y, worldZ: target.hit.z) else { return }
+		let miningProgressPerTick = player.gameMode == .creative ? 1 : BlockData.miningProgressPerTick(for: stateID)
 		
 		if player.diggingBlock == nil {
 			serverConnection.sendPlayerAction(status: 0, block: target.hit, face: face)
@@ -57,11 +57,11 @@ extension Renderer {
 		}
 
 		serverConnection.sendSwing()
-		player.digProgress += progressPerTick
+		player.digProgress += miningProgressPerTick
 		guard player.digProgress >= 1 else { return }
 		player.diggingBlock = nil
 		player.digDelay = 5
-		if progressPerTick < 1 {
+		if miningProgressPerTick < 1 {
 			serverConnection.sendPlayerAction(status: 2, block: target.hit, face: face)
 		}
 	}

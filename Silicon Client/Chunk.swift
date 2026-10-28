@@ -57,24 +57,6 @@ struct Section {
 	mutating func setBlock(x: Int, y: Int, z: Int, id: UInt16) {
 		blocks[index(x: x, y: y, z: z)] = id
 	}
-	
-	func lightLevel(at index: Int) -> Int {
-		let sky = skyLight.isEmpty ? 15 : nibble(skyLight, index)
-		let block = blockLight.isEmpty ? 0 : nibble(blockLight, index)
-		
-		return max(sky, block)
-	}
-	
-	// Two blocks share a byte: the even one is the low half, the odd one the high half.
-	private func nibble(_ light: Data, _ index: Int) -> Int {
-		let byteIndex = index >> 1
-		
-		guard byteIndex < light.count else { return 0 }
-		
-		let byte = light[light.startIndex + byteIndex]
-		
-		return index & 1 == 0 ? Int(byte & 0xF) : Int(byte >> 4)
-	}
 }
 
 struct Chunk {

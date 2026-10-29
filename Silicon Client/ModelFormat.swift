@@ -63,11 +63,84 @@ struct ResolvedModel {
 	let elements: [MinecraftModelElement]   // the winning shape
 }
 
+// When a part of a block is drawn. Read from a blockstate file's "when" (or a variants key).
+indirect enum PartCondition {
+	case properties([String: String])   // {"north": "true", "shape": "low|tall"}: every one must match
+	case anyOf([PartCondition])         // {"OR": [...]}: at least one must match
+	case allOf([PartCondition])         // {"AND": [...]}: all must match
+}
+
+extension PartCondition: Decodable {
+	init(from decoder: Decoder) throws {
+		let container = try decoder.singleValueContainer()
+		if let nested = try? container.decode([String: [PartCondition]].self), let key = nested.keys.first {
+			self = key == "OR" ? .anyOf(nested[key]!) : .allOf(nested[key]!)
+		} else {
+			self = .properties(try container.decode([String: String].self))
+		}
+	}
+	
+	init?(variantKey: String) {
+		if variantKey.isEmpty { return nil }
+		var wanted: [String: String] = [:]
+		for pair in variantKey.split(separator: ",") {
+			let nameAndValue = pair.split(separator: "=")
+			wanted[String(nameAndValue[0])] = String(nameAndValue[1])
+		}
+		self = .properties(wanted)
+	}
+	
+	func matches(_ properties: [String: String]) -> Bool {
+		switch self {
+		case .properties(let requiredProperties):
+			for (propertyName, allowedValues) in requiredProperties {
+				var found = false
+				for allowedValue in allowedValues.split(separator: "|") {
+					if String(allowedValue) == properties[propertyName] { found = true }
+				}
+				if !found { return false }
+			}
+			return true
+		case .anyOf(let conditions):
+			for condition in conditions {
+				if condition.matches(properties) { return true }
+			}
+			return false
+		case .allOf(let conditions):
+			for condition in conditions {
+				if !condition.matches(properties) { return false }
+			}
+			return true
+		}
+	}
+}
+
+// One piece of a block: drawn when its condition matches. A variants file
+// becomes one part per key; a multipart file one part per entry.
+struct BlockStatePart: Decodable {
+	let when: PartCondition?            // nil = always drawn
+	let apply: VariantOptions           // the model(s) + turn, picked from like before
+}
+
 // One blockstates/*.json file: every placement a block can have.
 // The keys are property lists, so anvil.json has four entries keyed
 // "facing=north", "facing=east", "facing=south", "facing=west".
 struct MinecraftBlockState: Decodable {
-	let variants: [String: VariantOptions]
+	let parts: [BlockStatePart]
+	private enum Keys: String, CodingKey { case variants, multipart }
+	init(from decoder: Decoder) throws {
+		let file = try decoder.container(keyedBy: Keys.self)
+		if let multipart = try file.decodeIfPresent([BlockStatePart].self, forKey: .multipart) {
+			parts = multipart
+		} else {
+			let variants = try file.decode([String: VariantOptions].self, forKey: .variants)
+			var list: [BlockStatePart] = []
+			for (key, options) in variants {
+				list.append(BlockStatePart(when: PartCondition(variantKey: key), apply: options))
+			}
+			parts = list
+		}
+	}
 }
 
 // A variant entry is either one model, or a list Minecraft picks from so

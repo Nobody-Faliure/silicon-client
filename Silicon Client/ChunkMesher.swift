@@ -24,7 +24,7 @@ import ImageIO
 struct ChunkMesher {
 	// It needs a type and a starting value, e.g.
 	static var modelCache: [String: ResolvedModel] = [:]
-	static var variantCache: [BlockState: VariantOptions] = [:]
+	static var variantCache: [BlockState: [VariantOptions]] = [:]
 	static var textureIsSolid: [String: Bool] = [:]
 	static var textureFolder: URL?
 	
@@ -218,9 +218,10 @@ struct ChunkMesher {
 						continue
 					}
 					
-					guard let options = info.variants?.options else {
+					guard let firstPart = info.parts.first else {
 						continue
 					}
+					let options = firstPart.options
 					
 					let v = options[variantIndex(x: x, y: y, z: z, count: options.count)]
 					
@@ -450,6 +451,11 @@ struct ChunkMesher {
 					
 					// One pass per box. A cube has a single box; the anvil has
 					// four, so a single anvil runs this four times.
+					for part in info.parts {
+					let v = part.options[variantIndex(x: x, y: y, z: z, count: part.options.count)]
+					let xRot = v.x ?? 0
+					let yRot = v.y ?? 0
+					let resolved = resolvedModel(modelName: v.model, modelFolder: modelFolder)
 					for (elementIndex, element) in resolved.elements.enumerated() {
 						
 						// Model space runs 0-16 across the block
@@ -557,6 +563,7 @@ struct ChunkMesher {
 								)
 							}
 						}
+					}
 					}
 				}
 			}

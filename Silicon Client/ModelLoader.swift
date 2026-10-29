@@ -19,7 +19,7 @@ extension ChunkMesher {
 	static func variantOptions(
 		for blockState: BlockState,
 		blockStateFolder: URL
-	) -> VariantOptions? {
+	) -> [VariantOptions] {
 		if let cached = variantCache[blockState] { return cached }
 		
 		let blockName = blockState.block.id
@@ -33,29 +33,17 @@ extension ChunkMesher {
 			from: blockStateURL,
 			as: MinecraftBlockState.self
 		) else {
-			return nil
+			return []
 		}
 		
-		for (variantKey, variant) in blockStateJSON.variants {
-			var matches = true
-			
-			for property in variantKey.split(separator: ",") {
-				let parts = property.split(separator: "=", maxSplits: 1)
-				
-				if parts.count == 2,
-				   blockState.properties[String(parts[0])] != String(parts[1]) {
-					matches = false
-					break
-				}
-			}
-			
-			if matches {
-				variantCache[blockState] = variant
-				return variant
-			}
+		var matching: [VariantOptions] = []
+		for part in blockStateJSON.parts {
+			if let condition = part.when, !condition.matches(blockState.properties) { continue }
+			matching.append(part.apply)
 		}
 		
-		return nil
+		variantCache[blockState] = matching
+		return matching
 	}
 	
 	

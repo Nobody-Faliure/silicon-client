@@ -1,59 +1,51 @@
 import Foundation
 
 extension Renderer {
-	func blockModel(at block: SIMD3<Int>) -> (variant: MinecraftBlockStateVariant, model: ResolvedModel)? {
+	func blockModels(at block: SIMD3<Int>) -> [(variant: MinecraftBlockStateVariant, model: ResolvedModel)] {
 		guard let modelFolder, let blockStateFolder,
 			  let blockID = clientWorld.blockID(worldX: block.x, y: block.y, worldZ: block.z)
-				else { return nil }
+				else { return [] }
 		let info = BlockInfoTable.info(
 			blockID,
 			blockStateFolder: blockStateFolder,
 			modelFolder: modelFolder
 		)
-		guard let options = info.variants?.options else { return nil }
 		
-		let variant = options[ChunkMesher.variantIndex(
-			x: block.x & 15,
-			y: block.y,
-			z: block.z & 15,
-			count: options.count
-		)]
-		
-		let model = ChunkMesher.resolvedModel(
-			modelName: variant.model,
-			modelFolder: modelFolder
-		)
-		
-		return (variant, model)
+		var models: [(variant: MinecraftBlockStateVariant, model: ResolvedModel)] = []
+		for part in info.parts {
+			let variant = part.options[ChunkMesher.variantIndex(x: block.x & 15, y: block.y, z: block.z & 15, count: part.options.count)]
+			models.append((variant, ChunkMesher.resolvedModel(modelName: variant.model, modelFolder: modelFolder)))
+		}
+		return models
 	}
 	
 	func outlineBoxes(at block: SIMD3<Int>) -> [(min: SIMD3<Float>, size: SIMD3<Float>)] {
-		guard let shape = blockModel(at: block) else { return [] }
 		let origin = SIMD3<Float>(block)
-		let turnX = shape.variant.x ?? 0
-		let turnY = shape.variant.y ?? 0
-		
-		let center = origin + 0.5
-		return shape.model.elements.map { element in
+		var boxes: [(min: SIMD3<Float>, size: SIMD3<Float>)] = []
+		for shape in blockModels(at: block) {
+			let turnX = shape.variant.x ?? 0
+			let turnY = shape.variant.y ?? 0
+			let center = origin + 0.5
+			for element in shape.model.elements {
 			let from = origin + SIMD3<Float>(element.from) / 16
 			let to = origin + SIMD3<Float>(element.to) / 16
 			let turnedFrom = ChunkMesher.rotate(turnX, turnY, around: center, from)
 			let turnedTo = ChunkMesher.rotate(turnX, turnY, around: center, to)
 			let boxMin = pointwiseMin(turnedFrom, turnedTo)
-			return (boxMin, pointwiseMax(turnedFrom, turnedTo) - boxMin)
+			boxes.append((boxMin, pointwiseMax(turnedFrom, turnedTo) - boxMin))
+			}
 		}
+		return boxes
 	}
 	
 	func breakingOverlayVertices(at block: SIMD3<Int>) -> [Vertex] {
-		guard let shape = blockModel(at: block) else { return [] }
-		let variant = shape.variant
-		let model = shape.model
-		
 		let origin = SIMD3<Float>(block)
 		let center = origin + 0.5
 		
 		var vertices: [Vertex] = []
-		for element in model.elements {
+		for shape in blockModels(at: block) {
+		let variant = shape.variant
+		for element in shape.model.elements {
 			let from = origin + SIMD3<Float>(element.from) / 16
 			let to = origin + SIMD3<Float>(element.to) / 16
 			for faceKey in (element.faces ?? [:]).keys {
@@ -74,6 +66,7 @@ extension Renderer {
 					))
 				}
 			}
+		}
 		}
 		return vertices
 	}

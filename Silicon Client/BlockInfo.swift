@@ -6,7 +6,7 @@ struct BlockInfo {
 	let fluidHeight: Float?          // nil means not a fluid
 	let isWater: Bool
 	let isLeaves: Bool
-	let variants: VariantOptions?    // nil means nothing to draw
+	let parts: [VariantOptions]      // the pieces to draw; empty means nothing to draw
 	let hidesNeighbours: Bool
 }
 
@@ -27,11 +27,11 @@ enum BlockInfoTable {
 		
 		let state = BlockRegistry.statesByID[Int(id)]
 		let name = state.block.id
-		let variants = ChunkMesher.variantOptions(for: state, blockStateFolder: blockStateFolder)
+		let parts = ChunkMesher.variantOptions(for: state, blockStateFolder: blockStateFolder)
 		
 		// Same rule as neighbourHides: the first option must be one full solid box.
 		var hides = false
-		if let first = variants?.options.first {
+		if parts.count == 1, let first = parts[0].options.first {
 			hides = ChunkMesher.hidesNeighbours(
 				ChunkMesher.resolvedModel(modelName: first.model, modelFolder: modelFolder)
 			)
@@ -42,7 +42,7 @@ enum BlockInfoTable {
 			fluidHeight: ChunkMesher.fluidHeight(of: state),
 			isWater: ChunkMesher.fluidHeight(of: state) != nil && name != "minecraft:lava",
 			isLeaves: name.contains("leaves"),
-			variants: variants,
+			parts: parts,
 			hidesNeighbours: hides
 		)
 		

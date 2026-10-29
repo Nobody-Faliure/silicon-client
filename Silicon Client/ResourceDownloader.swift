@@ -97,13 +97,21 @@ final class ResourceDownloader {
 		return data
 	}
 	
-	// Saves the downloaded JAR into the temporary folder
+	// Saves the downloaded JAR next to the server jar, so extractors can use it later
 	func saveClientJar(_ data: Data) throws -> URL {
-		let url = FileManager.default.temporaryDirectory
-			.appendingPathComponent("minecraft-client.jar")
+		let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+			.appendingPathComponent("Silicon Client/Versions/\(minecraftVersion)/client.jar")
+		try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
 		
-		try data.write(to: url)
+		try data.write(to: url, options: .atomic)
 		return url
+	}
+	
+	func clientJar(from metadata: VersionMetadata) async throws -> URL {
+		let saved = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+			.appendingPathComponent("Silicon Client/Versions/\(minecraftVersion)/client.jar")
+		if FileManager.default.fileExists(atPath: saved.path) { return saved }
+		return try saveClientJar(try await fetchClientJar(from: metadata))
 	}
 	
 	func saveServerJar(_ data: Data) throws -> URL {
@@ -153,8 +161,7 @@ final class ResourceDownloader {
 		let metadata = try decodeVersionMetadata(from: metadataData)
 		
 		// Download and open the JAR as a ZIP archive
-		let jarData = try await fetchClientJar(from: metadata)
-		let jarURL = try saveClientJar(jarData)
+		let jarURL = try await clientJar(from: metadata)
 		
 		let archive = try Archive(url: jarURL, accessMode: .read)
 		
@@ -268,8 +275,7 @@ final class ResourceDownloader {
 		let metadataData = try await fetchVersionMetadata(for: version)
 		let metadata = try decodeVersionMetadata(from: metadataData)
 		
-		let jarData = try await fetchClientJar(from: metadata)
-		let jarURL = try saveClientJar(jarData)
+		let jarURL = try await clientJar(from: metadata)
 		let archive = try Archive(url: jarURL, accessMode: .read)
 		
 		try FileManager.default.createDirectory(
@@ -345,8 +351,7 @@ final class ResourceDownloader {
 		let metadataData = try await fetchVersionMetadata(for: version)
 		let metadata = try decodeVersionMetadata(from: metadataData)
 		
-		let jarData = try await fetchClientJar(from: metadata)
-		let jarURL = try saveClientJar(jarData)
+		let jarURL = try await clientJar(from: metadata)
 		let archive = try Archive(url: jarURL, accessMode: .read)
 		
 		try FileManager.default.createDirectory(
@@ -407,8 +412,7 @@ final class ResourceDownloader {
 		let metadataData = try await fetchVersionMetadata(for: version)
 		let metadata = try decodeVersionMetadata(from: metadataData)
 		
-		let jarData = try await fetchClientJar(from: metadata)
-		let jarURL = try saveClientJar(jarData)
+		let jarURL = try await clientJar(from: metadata)
 		let archive = try Archive(url: jarURL, accessMode: .read)
 		
 		guard let entry = archive["assets/minecraft/lang/en_us.json"] else { throw NSError(domain: "ResourceDownloader", code: 41) }

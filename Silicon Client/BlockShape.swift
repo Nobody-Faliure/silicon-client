@@ -32,7 +32,7 @@ extension Renderer {
 			let turnedFrom = ChunkMesher.rotate(turnX, turnY, around: center, from)
 			let turnedTo = ChunkMesher.rotate(turnX, turnY, around: center, to)
 			let boxMin = pointwiseMin(turnedFrom, turnedTo)
-			boxes.append((boxMin, pointwiseMax(turnedFrom, turnedTo) - boxMin))
+			boxes.append((boxMin, pointwiseMax(pointwiseMax(turnedFrom, turnedTo) - boxMin, SIMD3<Float>(repeating: 1.0 / 16))))
 			}
 		}
 		return boxes

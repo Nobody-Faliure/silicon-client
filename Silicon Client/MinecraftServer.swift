@@ -210,6 +210,29 @@ final class MinecraftServer {
 		}
 	}
 	
+	static func generateBlockTints(jar: URL) {
+		let versionFolder = jar.deletingLastPathComponent()
+		let output = versionFolder.appendingPathComponent("GeneratedData/silicon/block-tints.json")
+		if FileManager.default.fileExists(atPath: output.path) { return }
+		try? FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+		
+		var jarPaths = [versionFolder.appendingPathComponent("client.jar").path]
+		let libraryWalker = FileManager.default.enumerator(at: versionFolder.appendingPathComponent("libraries"), includingPropertiesForKeys: nil)
+		while let file = libraryWalker?.nextObject() as? URL {
+			if file.pathExtension == "jar" { jarPaths.append(file.path) }
+		}
+		guard let extractor = Bundle.main.url(forResource: "BlockTintExtractor", withExtension: "java") else { return }
+		let process = Process()
+		process.executableURL = URL(fileURLWithPath: "/usr/bin/java")
+		process.arguments = ["-cp", jarPaths.joined(separator: ":"), extractor.path, output.path]
+		do {
+			try process.run()
+			process.waitUntilExit()
+		} catch {
+			print("[block tints] could not run the extractor: \(error)")
+		}
+	}
+	
 	func stop() {
 		if process?.isRunning == true {
 			process?.terminate()

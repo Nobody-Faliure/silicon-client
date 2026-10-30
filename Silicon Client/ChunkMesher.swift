@@ -532,7 +532,9 @@ struct ChunkMesher {
 							* brightness(ofLight: lightLevel(x, y, z, lightDirection))
 							
 							let faceTint: SIMD3<Float> = {
-								guard face.tintindex != nil else {
+								guard let tintIndex = face.tintindex,
+									  Int(blockID) < BlockTints.states.count,
+									  tintIndex < BlockTints.states[Int(blockID)].count else {
 									return SIMD3<Float>(1, 1, 1)
 								}
 								
@@ -543,11 +545,7 @@ struct ChunkMesher {
 									return SIMD3<Float>(1, 1, 1)
 								}
 								
-								let biome = BiomeRegistry.biomes[id]
-								let isLeaves = info.isLeaves
-								
-								return (isLeaves ? biome.foliageColor : biome.grassColor)
-								?? SIMD3<Float>(1, 1, 1)
+								return BlockTints.states[Int(blockID)][tintIndex].color(in: BiomeRegistry.biomes[id])
 							}()
 							
 							for i in [0, 3, 2, 2, 1, 0] {

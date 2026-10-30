@@ -20,6 +20,7 @@
 			buildPhase = 5676D5853037D0F900BC45F6 /* Resources */;
 			membershipExceptions = (
 				BlockDataExtractor.java,
+				BlockTintExtractor.java,
 			);
 		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */

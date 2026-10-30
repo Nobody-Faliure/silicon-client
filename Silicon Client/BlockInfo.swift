@@ -5,7 +5,6 @@ struct BlockInfo {
 	let isAir: Bool
 	let fluidHeight: Float?          // nil means not a fluid
 	let isWater: Bool
-	let isLeaves: Bool
 	let parts: [VariantOptions]      // the pieces to draw; empty means nothing to draw
 	let hidesNeighbours: Bool
 }
@@ -41,7 +40,6 @@ enum BlockInfoTable {
 			isAir: name == "minecraft:air",
 			fluidHeight: ChunkMesher.fluidHeight(of: state),
 			isWater: ChunkMesher.fluidHeight(of: state) != nil && name != "minecraft:lava",
-			isLeaves: name.contains("leaves"),
 			parts: parts,
 			hidesNeighbours: hides
 		)

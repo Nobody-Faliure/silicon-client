@@ -6,6 +6,7 @@ import Foundation
 struct Biome {
 	let grassColor: SIMD3<Float>?
 	let foliageColor: SIMD3<Float>?
+	let dryFoliageColor: SIMD3<Float>?
 	let waterColor: SIMD3<Float>?
 	
 	let temperature: Float
@@ -14,6 +15,7 @@ struct Biome {
 	static let unknown = Biome(
 		grassColor: nil,
 		foliageColor: nil,
+		dryFoliageColor: nil,
 		waterColor: nil,
 		temperature: 0.5,
 		downfall: 0.5
@@ -30,7 +32,9 @@ enum BiomeRegistry {
 			let grass = loadColormap(
 				at: folder.appendingPathComponent("colormap/grass.png")),
 			let foliage = loadColormap(
-				at: folder.appendingPathComponent("colormap/foliage.png"))
+				at: folder.appendingPathComponent("colormap/foliage.png")),
+			let dryFoliage = loadColormap(
+				at: folder.appendingPathComponent("colormap/dry_foliage.png"))
 				else { return }
 		
 		biomes = biomes.map { biome in
@@ -42,6 +46,11 @@ enum BiomeRegistry {
 				),
 				foliageColor: biome.foliageColor ?? color(
 					fromColormap: foliage,
+					temperature: biome.temperature,
+					downfall: biome.downfall
+				),
+				dryFoliageColor: biome.dryFoliageColor ?? color(
+					fromColormap: dryFoliage,
 					temperature: biome.temperature,
 					downfall: biome.downfall
 				),
@@ -125,6 +134,7 @@ enum BiomeRegistry {
 		return Biome(
 			grassColor: string(effects["grass_color"]).flatMap(color(fromHex:)),
 			foliageColor: string(effects["foliage_color"]).flatMap(color(fromHex:)),
+			dryFoliageColor: string(effects["dry_foliage_color"]).flatMap(color(fromHex:)),
 			waterColor: string(effects["water_color"]).flatMap(color(fromHex:)),
 			temperature: float(root["temperature"]) ?? 0.5,
 			downfall: float(root["downfall"]) ?? 0.5

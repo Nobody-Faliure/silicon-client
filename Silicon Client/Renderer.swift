@@ -405,6 +405,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 				
 				status.show("Extracting block data")
 				MinecraftServer.generateBlockData(jar: serverJar)
+				status.show("Extracting block colours")
+				MinecraftServer.generateBlockTints(jar: serverJar)
+				DispatchQueue.main.async { BlockTints.load(jar: serverJar) }
 				DispatchQueue.main.async { BlockData.load(jar: serverJar) }
 				
 				status.show("Starting the server")

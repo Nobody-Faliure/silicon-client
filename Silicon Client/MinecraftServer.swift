@@ -188,8 +188,13 @@ final class MinecraftServer {
 	
 	static func generateBlockData(jar: URL) {
 		let versionFolder = jar.deletingLastPathComponent()
-		let output = versionFolder.appendingPathComponent("GeneratedData/silicon/block-data.json")
+		let output = BlockData.file(jar: jar)
 		if FileManager.default.fileExists(atPath: output.path) { return }
+		let folder = output.deletingLastPathComponent()
+		let oldFiles = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+		for name in oldFiles where name.hasPrefix("block-data") {
+			try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+		}
 		try? FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
 		
 		let jarFolders = ["libraries", "versions"].map { versionFolder.appendingPathComponent($0) }

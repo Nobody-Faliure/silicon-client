@@ -13,15 +13,6 @@ final class ClientWorld {
 	var urgentSections: Set<SectionPosition> = [] { didSet { hasNewWork = true } }
 	var hasNewWork = false
 	
-	static let noCollision: Set<String> = [
-		"minecraft:air"
-		,"minecraft:water", "minecraft:lava", "minecraft:bubble_column",
-		"minecraft:cave_air", "minecraft:void_air",
-		"minecraft:seagrass", "minecraft:tall_seagrass",
-		"minecraft:kelp", "minecraft:kelp_plant",
-		"minecraft:short_grass", "minecraft:tall_grass", "minecraft:fern", "minecraft:large_fern",
-	]
-	
 	init() {
 	}
 	
@@ -74,12 +65,17 @@ final class ClientWorld {
 			return Hitbox(boxes: [Box(min: corner, max: corner + [1, 1, 1])])
 		}
 		
-		let name = BlockRegistry.statesByID[Int(id)].block.id
-		// Air has no boxes
-		if ClientWorld.noCollision.contains(name) { return Hitbox(boxes: []) }
-		
-		// For now, every other block is a full cube
-		return Hitbox(boxes: [Box(min: corner, max: corner + [1, 1, 1])])
+		guard Int(id) < BlockData.states.count else {
+			return Hitbox(boxes: [Box(min: corner, max: corner + [1, 1, 1])])   // data not loaded yet: solid
+		}
+		var boxes: [Box] = []
+		for numbers in BlockData.states[Int(id)].collision {
+			if numbers.count < 6 { continue }   // broken entry: skip it rather than crash
+			let low = SIMD3<Double>(numbers[0], numbers[1], numbers[2])
+			let high = SIMD3<Double>(numbers[3], numbers[4], numbers[5])
+			boxes.append(Box(min: corner + low, max: corner + high))
+		}
+		return Hitbox(boxes: boxes)
 	}
 	
 	func blockID(worldX: Int, y: Int, worldZ: Int) -> UInt16? {

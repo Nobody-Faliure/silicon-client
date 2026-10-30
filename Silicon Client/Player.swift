@@ -115,7 +115,7 @@ struct Player {
 			
 			var nearby: [Box] = []
 			for x in Int(floor(areaMin.x))...Int(floor(areaMax.x)) {
-				for y in Int(floor(areaMin.y))...Int(floor(areaMax.y)) {
+				for y in Int(floor(areaMin.y)) - 1...Int(floor(areaMax.y)) {
 					for z in Int(floor(areaMin.z))...Int(floor(areaMax.z)) {
 						nearby += world.hitbox(at: [Double(x), Double(y), Double(z)]).boxes
 					}

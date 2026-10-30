@@ -30,8 +30,8 @@ vertex VertexOut vertexShader(
 		out.position.z -= 0.00001 * out.position.w;   // overlay: a hair closer, so it wins over the face under it
 	}
 	out.uv = float2(v.uv) / 65535.0;
-	out.tint = float3(v.color.rgb) / 255.0;
-	out.shade = float(v.color.a) / 255.0;
+	out.tint = pow(float3(v.color.rgb) / 255.0, 2.2);    // sRGB → linear, like the texture
+	out.shade = pow(float(v.color.a) / 255.0, 2.2);      // sRGB → linear, like the texture
 	return out;
 }
 

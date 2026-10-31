@@ -21,6 +21,7 @@
 			membershipExceptions = (
 				BlockDataExtractor.java,
 				BlockTintExtractor.java,
+				EntityExtractor.java,
 			);
 		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */

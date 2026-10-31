@@ -237,7 +237,39 @@ final class MinecraftServer {
 			print("[block tints] could not run the extractor: \(error)")
 		}
 	}
-	
+
+	static func generateEntityData(jar: URL) {
+		let versionFolder = jar.deletingLastPathComponent()
+		let output = EntityData.file(jar: jar)
+		if FileManager.default.fileExists(atPath: output.path) { return }
+		let folder = output.deletingLastPathComponent()
+		let oldFiles = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+		for name in oldFiles {
+			if name.hasPrefix("entities") {
+				try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+			}
+		}
+		try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+		var jarPaths = [versionFolder.appendingPathComponent("client.jar").path]
+		let librariesFolder = versionFolder.appendingPathComponent("libraries")
+		let libraryFinder = FileManager.default.enumerator(at: librariesFolder, includingPropertiesForKeys: nil)
+		while let file = libraryFinder?.nextObject() as? URL {
+			if file.pathExtension == "jar" {
+				jarPaths.append(file.path)
+			}
+		}
+		guard let extractor = Bundle.main.url(forResource: "EntityExtractor", withExtension: "java") else { return }
+		let process = Process()
+		process.executableURL = URL(fileURLWithPath: "/usr/bin/java")
+		process.arguments = ["-cp", jarPaths.joined(separator: ":"), extractor.path, output.path]
+		do {
+			try process.run()
+			process.waitUntilExit()
+		} catch {
+			print("[entities] could not run the extractor: \(error)")
+		}
+	}
+
 	func stop() {
 		if process?.isRunning == true {
 			process?.terminate()

@@ -8,6 +8,7 @@ struct SectionPosition: Hashable {
 
 final class ClientWorld {
 	var chunks: [Chunk] = []
+	var entities: [Int: Entity] = [:]
 	
 	var dirtySections: Set<SectionPosition> = [] { didSet { hasNewWork = true } }
 	var urgentSections: Set<SectionPosition> = [] { didSet { hasNewWork = true } }
@@ -156,5 +157,44 @@ final class ClientWorld {
 	func unloadAll() {
 		chunks = []
 		dirtySections = []
+		entities = [:]
+	}
+
+	func addEntity(id: Int, typeID: Int, position: SIMD3<Double>, yaw: Float, pitch: Float, headYaw: Float) {
+		var entity = Entity(id: id, typeID: typeID, position: position, previousPosition: position)
+		entity.yaw = yaw
+		entity.pitch = pitch
+		entity.headYaw = headYaw
+		entities[id] = entity
+	}
+
+	func moveEntity(id: Int, by step: SIMD3<Double>) {
+		entities[id]?.position += step
+	}
+
+	func placeEntity(id: Int, at position: SIMD3<Double>) {
+		entities[id]?.position = position
+	}
+
+	func turnEntity(id: Int, yaw: Float, pitch: Float) {
+		entities[id]?.yaw = yaw
+		entities[id]?.pitch = pitch
+	}
+
+	func turnHead(id: Int, headYaw: Float) {
+		entities[id]?.headYaw = headYaw
+	}
+
+	func removeEntities(ids: [Int]) {
+		for id in ids {
+			entities[id] = nil
+		}
+	}
+
+	func tickEntities() {
+		for (id, entity) in entities {
+			entities[id]?.previousPosition = entity.position
+			entities[id]?.age += 1
+		}
 	}
 }

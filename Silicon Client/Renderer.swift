@@ -47,6 +47,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	let hudPipelineState: MTLRenderPipelineState
 	
 	let outlinePipelineState: MTLRenderPipelineState
+	let entityPipelineState: MTLRenderPipelineState
 	
 	var crosshairTexture: MTLTexture?
 	
@@ -238,6 +239,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 		skyDescriptor.colorAttachments[0].isBlendingEnabled = true
 		self.outlinePipelineState = try! device.makeRenderPipelineState(descriptor: skyDescriptor)
 		
+		let entityDescriptor = MTLRenderPipelineDescriptor()
+		entityDescriptor.vertexFunction = library.makeFunction(name: "outlineVertex")!
+		entityDescriptor.fragmentFunction = library.makeFunction(name: "entityBoxFragment")!
+		entityDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm_srgb
+		entityDescriptor.depthAttachmentPixelFormat = .depth32Float
+		self.entityPipelineState = try! device.makeRenderPipelineState(descriptor: entityDescriptor)
+		
 		let skyDepthDescriptor = MTLDepthStencilDescriptor()
 		skyDepthDescriptor.depthCompareFunction = .always
 		skyDepthDescriptor.isDepthWriteEnabled = false
@@ -358,6 +366,30 @@ final class Renderer: NSObject, MTKViewDelegate {
 		
 		serverConnection.onSystemChat = { [weak self] text in
 			self?.chat.messages.append(text)
+		}
+
+		serverConnection.onEntityAdded = { [weak self] id, typeID, position, yaw, pitch, headYaw in
+			self?.clientWorld.addEntity(id: id, typeID: typeID, position: position, yaw: yaw, pitch: pitch, headYaw: headYaw)
+		}
+
+		serverConnection.onEntityMoved = { [weak self] entityID, step in
+			self?.clientWorld.moveEntity(id: entityID, by: step)
+		}
+
+		serverConnection.onEntityTurned = { [weak self] entityID, yaw, pitch in
+			self?.clientWorld.turnEntity(id: entityID, yaw: yaw, pitch: pitch)
+		}
+
+		serverConnection.onHeadTurned = { [weak self] entityID, headYaw in
+			self?.clientWorld.turnHead(id: entityID, headYaw: headYaw)
+		}
+
+		serverConnection.onEntityPlaced = { [weak self] entityID, position in
+			self?.clientWorld.placeEntity(id: entityID, at: position)
+		}
+
+		serverConnection.onEntitiesRemoved = { [weak self] entityIDs in
+			self?.clientWorld.removeEntities(ids: entityIDs)
 		}
 		
 		Task {
@@ -609,7 +641,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 		if timeRate > 0 { dayTime += 1 }
 		
 		player.previousTickPosition = player.position
-		
+		clientWorld.tickEntities()
+
 		let wasFlying = player.isFlying
 		let wasSprinting = player.isSprinting
 		player.updatePosition(input: input, deltaTime: Renderer.tickLength, world: clientWorld)
@@ -892,6 +925,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 			}
 		}
 		
+		let screenSize = SIMD2<Float>(Float(view.drawableSize.width), Float(view.drawableSize.height))
+		drawEntities(with: renderEncoder, viewProjection: viewProjection, screenSize: screenSize, blend: blend)
+
 		if let breakingOverlay, let block = player.diggingBlock {
 			renderEncoder.setRenderPipelineState(breakingPipelineState)
 			var origin = SIMD3<Float>(block)

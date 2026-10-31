@@ -27,6 +27,12 @@ final class ServerConnection {
 	var onTime: ((_ ticks: Int, _ rate: Double) -> Void)?
 	var onBlockState: ((_ blockStateId: Int, _ x: Int, _ y: Int, _ z: Int) -> Void)?
 	var onSystemChat: ((_ text: String) -> Void)?
+	var onEntityAdded: ((_ id: Int, _ typeID: Int, _ position: SIMD3<Double>, _ yaw: Float, _ pitch: Float, _ headYaw: Float) -> Void)?
+	var onEntityMoved: ((_ id: Int, _ step: SIMD3<Double>) -> Void)?
+	var onEntityTurned: ((_ id: Int, _ yaw: Float, _ pitch: Float) -> Void)?
+	var onHeadTurned: ((_ id: Int, _ headYaw: Float) -> Void)?
+	var onEntityPlaced: ((_ id: Int, _ position: SIMD3<Double>) -> Void)?
+	var onEntitiesRemoved: ((_ ids: [Int]) -> Void)?
 	
 	func connect(host: String, port: UInt16) {
 		let endpoint = NWEndpoint.hostPort(
@@ -308,6 +314,75 @@ final class ServerConnection {
 			}
 			
 			DispatchQueue.main.async { self.onAttributes?(entityID, stats) }
+			
+		case (.play, 0x01):							// add entity
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			let id = reader.readVarInt()
+			_ = reader.readBytes(16)				// UUID, unused for now
+			let typeID = reader.readVarInt()
+			let position = SIMD3(reader.readDouble(), reader.readDouble(), reader.readDouble())
+			let movementHeader = reader.readByte()
+			if movementHeader != 0 {
+				_ = reader.readBytes(5)
+				if movementHeader & 4 != 0 { _ = reader.readVarInt() }
+			}
+			let pitch = Float(reader.readByte()) * 360 / 256
+			let yaw = Float(reader.readByte()) * 360 / 256
+			let headYaw = Float(reader.readByte()) * 360 / 256
+			DispatchQueue.main.async {
+				self.onEntityAdded?(id, typeID, position, yaw, pitch, headYaw)
+			}
+
+		case (.play, 0x35), (.play, 0x36):			// move entity (0x36 also turns it)
+			let hasRotation = id == 0x36
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			let entityID = reader.readVarInt()
+			let step = SIMD3(Double(reader.readShort()), Double(reader.readShort()), Double(reader.readShort())) / 4096
+			DispatchQueue.main.async { self.onEntityMoved?(entityID, step) }
+			if hasRotation {
+				let yaw = Float(reader.readByte()) * 360 / 256
+				let pitch = Float(reader.readByte()) * 360 / 256
+				DispatchQueue.main.async { self.onEntityTurned?(entityID, yaw, pitch) }
+			}
+
+		case (.play, 0x38):							// turn entity
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			let entityID = reader.readVarInt()
+			let yaw = Float(reader.readByte()) * 360 / 256
+			let pitch = Float(reader.readByte()) * 360 / 256
+			DispatchQueue.main.async { self.onEntityTurned?(entityID, yaw, pitch) }
+			
+		case (.play, 0x53):							// turn head
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			let entityID = reader.readVarInt()
+			let headYaw = Float(reader.readByte()) * 360 / 256
+			DispatchQueue.main.async { self.onHeadTurned?(entityID, headYaw) }
+			
+		case (.play, 0x23), (.play, 0x7d):			// exact entity position (sync / teleport)
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			let entityID = reader.readVarInt()
+			let position = SIMD3(reader.readDouble(), reader.readDouble(), reader.readDouble())
+			_ = reader.readBytes(24)				// velocity: 3 doubles, unused for now
+			let yaw = reader.readFloat()
+			let pitch = reader.readFloat()
+			DispatchQueue.main.async {
+				self.onEntityPlaced?(entityID, position)
+				self.onEntityTurned?(entityID, yaw, pitch)
+			}
+			
+		case (.play, 0x4d):							// remove entities
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			var entityIDs: [Int] = []
+			for _ in 0..<reader.readVarInt() {
+				entityIDs.append(reader.readVarInt())
+			}
+			DispatchQueue.main.async { self.onEntitiesRemoved?(entityIDs) }
 			
 		case (.play, 0x08):							// set block state
 			var reader = NBTReader(data: packet)

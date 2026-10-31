@@ -6,6 +6,9 @@ struct Entity {
 	let typeID: Int                      // what kind: pig, zombie… (looked up in EntityData later)
 	var position: SIMD3<Double>          // where it is now (feet, centre)
 	var previousPosition: SIMD3<Double>  // where it was one tick ago; drawing slides between the two
+	var yaw: Float = 0                     // which way the body faces, in degrees
+	var pitch: Float = 0                   // looking up/down, in degrees
+	var headYaw: Float = 0                 // which way the head faces (can differ from the body)
 	var walkPosition: Float = 0            // how far it has walked, in steps; drives the leg swing (like vanilla)
 	var walkSpeed: Float = 0               // 0 standing … 1 running; how big the leg swing is
 	var age: Int = 0                       // ticks since we first saw it; drives idle motion and keyframe timing

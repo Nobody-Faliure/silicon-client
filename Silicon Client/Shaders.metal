@@ -139,6 +139,10 @@ fragment float4 outlineFragment() {
 	return float4(0, 0, 0, 0.675);  // black; 0.675 here looks like vanilla's 0.4
 }
 
+fragment float4 entityBoxFragment() {
+	return float4(1, 1, 1, 1);  // white, like vanilla's F3+B hitboxes
+}
+
 fragment float4 breakingFragment(
 								 VertexOut in [[stage_in]],
 								 texture2d<float> texture [[texture(0)]]

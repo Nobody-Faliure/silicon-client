@@ -7,13 +7,36 @@ struct EntityType: Decodable {
 	let height: Double
 }
 
+// One piece of a model (head, a leg…). Each face is 20 numbers: 4 corners × x y z u v.
+struct EntityPart: Decodable {
+	let name: String
+	let parent: Int
+	let x: Float
+	let y: Float
+	let z: Float
+	let xRot: Float
+	let yRot: Float
+	let zRot: Float
+	let faces: [[Float]]
+}
+
+// One model of one entity (the pig has PigModel, BabyPigModel, ColdPigModel…).
+struct EntityModel: Decodable {
+	let entity: String
+	let kind: String
+	let texture: String
+	let parts: [EntityPart]
+}
+
 // The whole entities.json file. models, walks and keyframes get added here later.
 struct EntitiesFile: Decodable {
 	let types: [EntityType]
+	let models: [EntityModel]
 }
 
 enum EntityData {
 	static var types: [EntityType] = []
+	static var models: [EntityModel] = []
 
 	static func file(jar: URL) -> URL {
 		let folder = jar.deletingLastPathComponent()
@@ -30,5 +53,6 @@ enum EntityData {
 			return
 		}
 		types = entitiesFile.types
+		models = entitiesFile.models
 	}
 }

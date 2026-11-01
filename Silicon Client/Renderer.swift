@@ -48,6 +48,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	let outlinePipelineState: MTLRenderPipelineState
 	let entityPipelineState: MTLRenderPipelineState
+	let entityModelPipelineState: MTLRenderPipelineState
 	
 	var crosshairTexture: MTLTexture?
 	
@@ -127,6 +128,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 	
 	var meshStamps: [SectionPosition: UInt64] = [:]  // newest queued time per section, only while meshing
 	var breakingOverlay: MTLBuffer?   // crack faces of the block being dug, nil when not digging
+	var entityMeshes: [Int: MTLBuffer] = [:]   // model number → its corners on the GPU, built the first time it's drawn
 	
 	var modelFolder: URL?
 	var blockStateFolder: URL?
@@ -245,6 +247,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 		entityDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm_srgb
 		entityDescriptor.depthAttachmentPixelFormat = .depth32Float
 		self.entityPipelineState = try! device.makeRenderPipelineState(descriptor: entityDescriptor)
+		let entityModelDescriptor = MTLRenderPipelineDescriptor()
+		entityModelDescriptor.vertexFunction = library.makeFunction(name: "entityVertex")!
+		entityModelDescriptor.fragmentFunction = library.makeFunction(name: "entityFragment")!
+		entityModelDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm_srgb
+		entityModelDescriptor.depthAttachmentPixelFormat = .depth32Float
+		self.entityModelPipelineState = try! device.makeRenderPipelineState(descriptor: entityModelDescriptor)
 		
 		let skyDepthDescriptor = MTLDepthStencilDescriptor()
 		skyDepthDescriptor.depthCompareFunction = .always
@@ -1021,3 +1029,4 @@ final class Renderer: NSObject, MTKViewDelegate {
 		)
 	}
 }
+

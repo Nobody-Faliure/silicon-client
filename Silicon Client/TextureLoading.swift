@@ -30,7 +30,7 @@ extension Renderer {
 	}
 	
 	// Decodes a Minecraft PNG into raw pixels and creates a Metal texture
-	func loadMinecraftTexture(from textureURL: URL, named name: String) -> MTLTexture {
+	func loadMinecraftTexture(from textureURL: URL, named name: String, canAnimate: Bool = true) -> MTLTexture {
 		do {
 			let data = try Data(contentsOf: textureURL)
 			
@@ -51,7 +51,7 @@ extension Renderer {
 			let width = cgImage.width
 			let height = cgImage.height
 			
-			let frameHeight = height > width ? width : height
+			let frameHeight = canAnimate && height > width ? width : height
 			
 			// Allocate enough memory for RGBA pixels
 			let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
@@ -122,7 +122,7 @@ extension Renderer {
 			mipmapCommands.commit()
 			
 			// A strip: remember every frame so draw() can swap them later.
-			if height > width {
+			if canAnimate && height > width {
 				let folder = textureURL.deletingLastPathComponent()
 				
 				animatedTextures[name] = AnimatedTexture(
@@ -182,5 +182,27 @@ extension Renderer {
 		
 		shrinker.endEncoding()
 		mipmapCommands.commit()
+	}
+
+	// Minecraft's "missing texture": magenta and black squares, for pictures that can't be found.
+	func makeMissingTexture() -> MTLTexture? {
+		let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm_srgb, width: 2, height: 2, mipmapped: false)
+		let texture = device.makeTexture(descriptor: descriptor)
+		let pixels: [UInt8] = [248, 0, 248, 255,   0, 0, 0, 255,   0, 0, 0, 255,   248, 0, 248, 255]
+		texture?.replace(region: MTLRegionMake2D(0, 0, 2, 2), mipmapLevel: 0, withBytes: pixels, bytesPerRow: 8)
+		return texture
+	}
+
+	// An entity's picture, like "textures/entity/zombie/zombie.png". Not found → checkerboard.
+	func entityTexture(path: String) -> MTLTexture? {
+		if let cached = textureCache[path] {
+			return cached
+		}
+		let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+		let file = applicationSupport.appendingPathComponent("Silicon Client/assets/minecraft/" + path)
+		let found = path.hasSuffix(".png") && FileManager.default.fileExists(atPath: file.path)
+		let picture = found ? loadMinecraftTexture(from: file, named: path, canAnimate: false) : makeMissingTexture()
+		textureCache[path] = picture
+		return picture
 	}
 }

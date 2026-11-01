@@ -143,6 +143,39 @@ fragment float4 entityBoxFragment() {
 	return float4(1, 1, 1, 1);  // white, like vanilla's F3+B hitboxes
 }
 
+struct EntityVertex {
+	float3 position;   // pixels, from the part's joint
+	float2 uv;         // 0...1 on the mob's picture
+	uint part;         // which entry of partMatrices moves this corner
+};
+
+struct EntityOut {
+	float4 position [[position]];
+	float2 uv;
+};
+
+vertex EntityOut entityVertex(
+	const device EntityVertex* vertices [[buffer(0)]],
+	uint vertexNumber [[vertex_id]],
+	constant float4x4& viewProjection [[buffer(1)]],
+	constant float4x4* partMatrices [[buffer(2)]]
+) {
+	EntityVertex corner = vertices[vertexNumber];
+	float4 placed = partMatrices[corner.part] * float4(corner.position, 1);
+	return { viewProjection * placed, corner.uv };
+}
+
+fragment float4 entityFragment(
+	EntityOut pixel [[stage_in]],
+	texture2d<float> picture [[texture(0)]]
+) {
+	float4 color = picture.sample(sampler(filter::nearest), pixel.uv);
+	if (color.a < 0.1) {
+		discard_fragment();
+	}
+	return color;
+}
+
 fragment float4 breakingFragment(
 								 VertexOut in [[stage_in]],
 								 texture2d<float> texture [[texture(0)]]

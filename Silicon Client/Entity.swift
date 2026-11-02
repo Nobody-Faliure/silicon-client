@@ -7,6 +7,7 @@ struct Entity {
 	var position: SIMD3<Double>          // where it is now (feet, centre)
 	var previousPosition: SIMD3<Double>  // where it was one tick ago; drawing slides between the two
 	var yaw: Float = 0                     // which way the body faces, in degrees
+	var previousYaw: Float = 0             // which way it faced one tick ago; drawing slides between the two
 	var pitch: Float = 0                   // looking up/down, in degrees
 	var headYaw: Float = 0                 // which way the head faces (can differ from the body)
 	var walkPosition: Float = 0            // how far it has walked, in steps; drives the leg swing (like vanilla)

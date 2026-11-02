@@ -26,6 +26,8 @@ struct EntityModel: Decodable {
 	let kind: String
 	let texture: String
 	let parts: [EntityPart]
+	let headYaw: [[Float]]
+	let headPitch: [[Float]]
 }
 
 // The whole entities.json file. models, walks and keyframes get added here later.

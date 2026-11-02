@@ -80,9 +80,31 @@ public class EntityExtractor {
 			findModels(renderer, models);
 			for (Model<?> model : models) {
 				json.append("    {\"entity\": \"" + name + "\", \"kind\": \"" + model.getClass().getSimpleName() + "\", \"texture\": \"" + texture + "\", \"parts\": [\n");
-				writePart(json, "root", model.root(), -1, new ArrayList<>());
+				List<ModelPart> parts = new ArrayList<>();
+				StringBuilder headYaw = new StringBuilder();
+				StringBuilder headPitch = new StringBuilder();
+				writePart(json, "root", model.root(), -1, parts);
+				if (renderer.createRenderState() instanceof LivingEntityRenderState state) {
+					for (int angle = -90; angle <= 90; angle += 10) {
+						state.yRot = angle;
+						try {
+							((Model) model).setupAnim(state);
+						} catch (Throwable error) {
+						}
+						writePose(headYaw, parts);
+					}
+					state.yRot = 0;
+					for (int angle = -90; angle <= 90; angle += 10) {
+						state.xRot = angle;
+						try {
+							((Model) model).setupAnim(state);
+						} catch (Throwable error) {
+						}
+						writePose(headPitch, parts);
+					}
+				}
 				json.setLength(json.length() - 2);
-				json.append("\n    ]},\n");
+				json.append("\n    ], \"headYaw\": [" + headYaw + "], \"headPitch\": [" + headPitch + "]},\n");
 			}
 		}
 		json.setLength(json.length() - 2);
@@ -153,5 +175,17 @@ public class EntityExtractor {
 		}
 		json.setLength(json.length() - 1);
 		json.append("],");
+	}
+
+	static void writePose(StringBuilder table, List<ModelPart> parts) {
+		if (!table.isEmpty()) {
+			table.append(",");
+		}
+		table.append("[");
+		for (ModelPart part : parts) {
+			table.append(number(part.xRot) + "," + number(part.yRot) + "," + number(part.zRot) + ",");
+		}
+		table.setLength(table.length() - 1);
+		table.append("]");
 	}
 }

@@ -11,8 +11,11 @@ extension Renderer {
 			guard entity.typeID < EntityData.types.count else { continue }
 			let type = EntityData.types[entity.typeID]
 			let smooth = entity.previousPosition + (entity.position - entity.previousPosition) * blend
+			var turn = entity.yaw - entity.previousYaw
+			turn -= 360 * (turn / 360).rounded()
+			let smoothYaw = entity.previousYaw + turn * Float(blend)
 			if let number = modelNumber(typeName: type.name) {
-				drawEntityModel(entity: entity, modelNumber: number, smooth: smooth, with: renderEncoder, viewProjection: viewProjection)
+				drawEntityModel(entity: entity, modelNumber: number, smooth: smooth, yaw: smoothYaw, with: renderEncoder, viewProjection: viewProjection)
 				continue
 			}
 			renderEncoder.setRenderPipelineState(entityPipelineState)
@@ -42,17 +45,36 @@ extension Renderer {
 	}
 
 	// One matrix per part, in seat order. Each part starts from its parent's matrix.
-	func partMatrices(model: EntityModel, base: simd_float4x4) -> [simd_float4x4] {
+	func partMatrices(model: EntityModel, base: simd_float4x4, headYaw: Float, headPitch: Float) -> [simd_float4x4] {
 		var matrices: [simd_float4x4] = []
-		for part in model.parts {
+		for partNumber in 0..<model.parts.count {
+			let part = model.parts[partNumber]
 			let hasParent = part.parent >= 0 && part.parent < matrices.count
 			let parentMatrix = hasParent ? matrices[part.parent] : base
 			let joint = moveMatrix(x: part.x, y: part.y, z: part.z)
-			let turnZ = turnMatrix(angle: part.zRot, axis: SIMD3<Float>(0, 0, 1))
-			let turnY = turnMatrix(angle: part.yRot, axis: SIMD3<Float>(0, 1, 0))
-			matrices.append(parentMatrix * joint * turnZ * turnY * turnMatrix(angle: part.xRot, axis: SIMD3<Float>(1, 0, 0)))
+			var partRotation = SIMD3<Float>(part.xRot, part.yRot, part.zRot)
+			if model.headYaw.count == 19 && model.headPitch.count == 19 {
+				let restingRotation = tableRotation(headTable: model.headYaw, headDegrees: 0, partNumber: partNumber)
+				let changeFromHeadTurn = tableRotation(headTable: model.headYaw, headDegrees: headYaw, partNumber: partNumber) - restingRotation
+				let changeFromHeadTilt = tableRotation(headTable: model.headPitch, headDegrees: headPitch, partNumber: partNumber) - restingRotation
+				partRotation = restingRotation + changeFromHeadTurn + changeFromHeadTilt
+			}
+			let turnZ = turnMatrix(angle: partRotation.z, axis: SIMD3<Float>(0, 0, 1))
+			let turnY = turnMatrix(angle: partRotation.y, axis: SIMD3<Float>(0, 1, 0))
+			matrices.append(parentMatrix * joint * turnZ * turnY * turnMatrix(angle: partRotation.x, axis: SIMD3<Float>(1, 0, 0)))
 		}
 		return matrices
+	}
+
+	func tableRotation(headTable: [[Float]], headDegrees: Float, partNumber: Int) -> SIMD3<Float> {
+		let rowPosition = min(max((headDegrees + 90) / 10, 0), 18)
+		let rowBelow = Int(rowPosition)
+		let rowAbove = min(rowBelow + 1, 18)
+		let blendTowardRowAbove = rowPosition - Float(rowBelow)
+		let firstNumber = partNumber * 3
+		let rotationBelow = SIMD3<Float>(headTable[rowBelow][firstNumber], headTable[rowBelow][firstNumber + 1], headTable[rowBelow][firstNumber + 2])
+		let rotationAbove = SIMD3<Float>(headTable[rowAbove][firstNumber], headTable[rowAbove][firstNumber + 1], headTable[rowAbove][firstNumber + 2])
+		return rotationBelow + (rotationAbove - rotationBelow) * blendTowardRowAbove
 	}
 
 	// The first model made for this entity type, or nil if it has none (items, paintings…).
@@ -66,19 +88,21 @@ extension Renderer {
 	}
 
 	// Draws one entity with its real model and picture.
-	func drawEntityModel(entity: Entity, modelNumber: Int, smooth: SIMD3<Double>, with renderEncoder: MTLRenderCommandEncoder, viewProjection: simd_float4x4) {
+	func drawEntityModel(entity: Entity, modelNumber: Int, smooth: SIMD3<Double>, yaw: Float, with renderEncoder: MTLRenderCommandEncoder, viewProjection: simd_float4x4) {
 		guard let mesh = entityMesh(modelNumber: modelNumber) else {
 			return
 		}
 		let model = EntityData.models[modelNumber]
 		let picture = entityTexture(path: model.texture)
 		let place = moveMatrix(x: Float(smooth.x), y: Float(smooth.y), z: Float(smooth.z))
-		let facing = turnMatrix(angle: (180 - entity.yaw) * .pi / 180, axis: SIMD3<Float>(0, 1, 0))
+		let facing = turnMatrix(angle: (180 - yaw) * .pi / 180, axis: SIMD3<Float>(0, 1, 0))
 		let flip = scaleMatrix(x: -1, y: -1, z: 1)
 		let down = moveMatrix(x: 0, y: -1.501, z: 0)
 		let pixels = scaleMatrix(x: 1.0 / 16, y: 1.0 / 16, z: 1.0 / 16)
 		let base = place * facing * flip * down * pixels
-		var matrices = partMatrices(model: model, base: base)
+		var headTurnFromBody = entity.headYaw - yaw
+		headTurnFromBody -= 360 * (headTurnFromBody / 360).rounded()
+		var matrices = partMatrices(model: model, base: base, headYaw: headTurnFromBody, headPitch: entity.pitch)
 		var camera = viewProjection
 		renderEncoder.setRenderPipelineState(entityModelPipelineState)
 		renderEncoder.setDepthStencilState(depthStencilState)

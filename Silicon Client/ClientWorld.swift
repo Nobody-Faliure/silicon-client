@@ -163,6 +163,7 @@ final class ClientWorld {
 	func addEntity(id: Int, typeID: Int, position: SIMD3<Double>, yaw: Float, pitch: Float, headYaw: Float) {
 		var entity = Entity(id: id, typeID: typeID, position: position, previousPosition: position)
 		entity.yaw = yaw
+		entity.previousYaw = yaw
 		entity.pitch = pitch
 		entity.headYaw = headYaw
 		entities[id] = entity
@@ -194,6 +195,7 @@ final class ClientWorld {
 	func tickEntities() {
 		for (id, entity) in entities {
 			entities[id]?.previousPosition = entity.position
+			entities[id]?.previousYaw = entity.yaw
 			entities[id]?.age += 1
 		}
 	}

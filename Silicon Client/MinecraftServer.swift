@@ -258,6 +258,11 @@ final class MinecraftServer {
 				jarPaths.append(file.path)
 			}
 		}
+		for asmJarName in ["asm-9.11.1", "asm-tree-9.11.1"] {
+			if let asmJar = Bundle.main.url(forResource: asmJarName, withExtension: "jar") {
+				jarPaths.append(asmJar.path)
+			}
+		}
 		guard let extractor = Bundle.main.url(forResource: "EntityExtractor", withExtension: "java") else { return }
 		let process = Process()
 		process.executableURL = URL(fileURLWithPath: "/usr/bin/java")

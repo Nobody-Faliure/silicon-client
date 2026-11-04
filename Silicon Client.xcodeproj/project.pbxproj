@@ -19,8 +19,11 @@
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = 5676D5853037D0F900BC45F6 /* Resources */;
 			membershipExceptions = (
+				"asm-9.11.1.jar",
+				"asm-tree-9.11.1.jar",
 				BlockDataExtractor.java,
 				BlockTintExtractor.java,
+				EntityAnimationTranslator.java,
 				EntityExtractor.java,
 			);
 		};

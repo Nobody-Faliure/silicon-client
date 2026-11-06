@@ -117,6 +117,36 @@ public class EntityAnimationTranslator {
 		return new Operation("choose", condition, whenTrue, whenFalse);
 	}
 
+	// How many layers of the state have a field with this name, e.g. "mainArm" is in 2: IllagerRenderState and ArmedEntityRenderState.
+	static int layersWithFieldName(Object entityRenderState, String fieldName) {
+		int layerCount = 0;
+		Class<?> searchedClass = entityRenderState.getClass();
+		while (searchedClass != null) {
+			for (Field field : searchedClass.getDeclaredFields()) {
+				if (field.getName().equals(fieldName)) {
+					layerCount = layerCount + 1;
+				}
+			}
+			searchedClass = searchedClass.getSuperclass();
+		}
+		return layerCount;
+	}
+
+	// Reads a field inside a state value, e.g. "rightHandItemState" + "activeLayerCount" gives "rightHandItemState.activeLayerCount".
+	// If it gets a choose, it reads the field inside both branches and keeps the same condition.
+	static Object readFieldInsideStateValue(Operation stateValueOrChoose, String fieldName) throws Exception {
+		if (stateValueOrChoose.name.equals("stateValue")) {
+			return new Operation("stateValue", stateValueOrChoose.inputs[0] + "." + fieldName);
+		}
+		boolean isChooseOfOperations = stateValueOrChoose.name.equals("choose") && stateValueOrChoose.inputs[1] instanceof Operation && stateValueOrChoose.inputs[2] instanceof Operation;
+		if (isChooseOfOperations) {
+			Object whenTrue = readFieldInsideStateValue((Operation) stateValueOrChoose.inputs[1], fieldName);
+			Object whenFalse = readFieldInsideStateValue((Operation) stateValueOrChoose.inputs[2], fieldName);
+			return choose(stateValueOrChoose.inputs[0], whenTrue, whenFalse);
+		}
+		throw new Exception("read a field inside " + stateValueOrChoose.name + ": not yet");
+	}
+
 	// A part number on one paper: what the paper wrote, or if it wrote nothing, the number the part already has.
 	static Object partValueOnPaper(FunctionBeingRead paper, PartField partField) throws Exception {
 		if (paper.partValues.containsKey(partField)) {
@@ -455,14 +485,17 @@ public class EntityAnimationTranslator {
 						continue;
 					}
 				}
-				boolean isFieldOfStateValue = objectWhoseFieldIsRead instanceof Operation outerOperation && outerOperation.name.equals("stateValue");
-				if (isFieldOfStateValue) {
-					String nestedStateValueName = ((Operation) objectWhoseFieldIsRead).inputs[0] + "." + fieldReadInstruction.name;
-					scratchPaper.formulaPieces.add(new Operation("stateValue", nestedStateValueName));
+				if (objectWhoseFieldIsRead instanceof Operation stateValueOrChoose) {
+					scratchPaper.formulaPieces.add(readFieldInsideStateValue(stateValueOrChoose, fieldReadInstruction.name));
 					continue;
 				}
 				if (objectWhoseFieldIsRead == entityRenderState) {
 					String stateValueName = fieldReadInstruction.name;
+					boolean nameIsInTwoLayers = layersWithFieldName(entityRenderState, stateValueName) > 1;
+					if (nameIsInTwoLayers) {
+						Class<?> layer = findField(fieldReadInstruction.owner, stateValueName).getDeclaringClass();
+						stateValueName = layer.getSimpleName() + ":" + stateValueName;
+					}
 					scratchPaper.formulaPieces.add(new Operation("stateValue", stateValueName));
 				} else {
 					Field field = findField(fieldReadInstruction.owner, fieldReadInstruction.name);
@@ -583,19 +616,19 @@ public class EntityAnimationTranslator {
 				for (int inputNumber = inputCount - 1; inputNumber >= 0; inputNumber--) {
 					calledFunctionInputs[inputNumber] = scratchPaper.formulaPieces.removeLast();
 				}
-				boolean hasStateValueInput = false;
+				boolean mustBeReadStepByStep = false;
 				for (Object calledFunctionInput : calledFunctionInputs) {
-					if (calledFunctionInput instanceof Operation || calledFunctionInput == entityRenderState) {
-						hasStateValueInput = true;
+					if (calledFunctionInput instanceof Operation || calledFunctionInput == entityRenderState || calledFunctionInput instanceof ModelPart) {
+						mustBeReadStepByStep = true;
 					}
 				}
 				Object returnedValue;
 				boolean isStaticCall = callInstruction.getOpcode() == Opcodes.INVOKESTATIC;
 				boolean onlyNumbersInAndOut = !callInstruction.desc.contains("L") && !callInstruction.desc.contains("[");
-				if (hasStateValueInput && isStaticCall && onlyNumbersInAndOut) {
+				if (mustBeReadStepByStep && isStaticCall && onlyNumbersInAndOut) {
 					String mathName = callInstruction.owner.substring(callInstruction.owner.lastIndexOf('/') + 1) + "." + callInstruction.name;
 					returnedValue = new Operation(mathName, calledFunctionInputs);
-				} else if (hasStateValueInput) {
+				} else if (mustBeReadStepByStep) {
 					MethodNode calledFunction = findCalledFunction(callInstruction);
 					if (calledFunction == null) {
 						throw new Exception("don't know " + callInstruction.owner + "." + callInstruction.name + " yet");

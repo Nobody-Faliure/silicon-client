@@ -557,13 +557,17 @@ public class EntityAnimationTranslator {
 				}
 				continue;
 			}
-			boolean isIfSameObject = instruction.getOpcode() == Opcodes.IF_ACMPEQ || instruction.getOpcode() == Opcodes.IF_ACMPNE;
+			boolean isIfNull = instruction.getOpcode() == Opcodes.IFNULL || instruction.getOpcode() == Opcodes.IFNONNULL;
+			if (isIfNull) {
+				scratchPaper.formulaPieces.add(null);
+			}
+			boolean isIfSameObject = instruction.getOpcode() == Opcodes.IF_ACMPEQ || instruction.getOpcode() == Opcodes.IF_ACMPNE || isIfNull;
 			if (isIfSameObject) {
 				JumpInsnNode jumpInstruction = (JumpInsnNode) instruction;
 				int jumpTarget = function.instructions.indexOf(jumpInstruction.label);
 				Object rightSideOfSameCheck = scratchPaper.formulaPieces.removeLast();
 				Object leftSideOfSameCheck = scratchPaper.formulaPieces.removeLast();
-				boolean jumpsWhenSame = instruction.getOpcode() == Opcodes.IF_ACMPEQ;
+				boolean jumpsWhenSame = instruction.getOpcode() == Opcodes.IF_ACMPEQ || instruction.getOpcode() == Opcodes.IFNULL;
 				boolean checksAStateValue = leftSideOfSameCheck instanceof Operation || rightSideOfSameCheck instanceof Operation;
 				if (checksAStateValue) {
 					Object jumpCondition = new Operation("isSame", leftSideOfSameCheck, rightSideOfSameCheck);

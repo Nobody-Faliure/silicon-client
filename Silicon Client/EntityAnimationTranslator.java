@@ -7,12 +7,14 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.IincInsnNode;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
@@ -37,7 +39,12 @@ public class EntityAnimationTranslator {
 			this.inputs = inputs;
 		}
 	}
-
+	
+	// An object the mob's code makes with NEW, e.g. UseParams. Remembers the formula put in each field.
+	static final class BuiltObject {
+		final LinkedHashMap<String, Object> fieldValues = new LinkedHashMap<>();
+	}
+	
 	// The scratch paper for one function being read: its variables, and its formula pieces in progress.
 	static final class FunctionBeingRead {
 		final Object[] variableSlots;
@@ -52,7 +59,7 @@ public class EntityAnimationTranslator {
 		FunctionBeingRead(MethodNode function) {
 			this.variableSlots = new Object[function.maxLocals];
 		}
-
+		
 		// Makes a copy of this scratch paper, so the other side of an if can be read on its own.
 		FunctionBeingRead(FunctionBeingRead original) {
 			this.variableSlots = original.variableSlots.clone();
@@ -62,37 +69,37 @@ public class EntityAnimationTranslator {
 			this.partValues.putAll(original.partValues);
 		}
 	}
-
+	
 	// One formula written into a part, e.g. rightHindLeg's xRot = cos(walkAnimationPos × 0.6662) × 1.4.
 	record PartWrite(ModelPart part, String field, Object formula) {
 	}
-
+	
 	// Which part, and which of its numbers, e.g. head and "zRot".
 	record PartField(ModelPart part, String field) {
 	}
-
+	
 	// Java's two-input math instructions, in their numbered order (IADD is 96, DREM is 115).
 	static final String[] twoInputMathNames = {
-		"iadd", "ladd", "fadd", "dadd",
-		"isub", "lsub", "fsub", "dsub",
-		"imul", "lmul", "fmul", "dmul",
-		"idiv", "ldiv", "fdiv", "ddiv",
-		"irem", "lrem", "frem", "drem",
+	"iadd", "ladd", "fadd", "dadd",
+	"isub", "lsub", "fsub", "dsub",
+	"imul", "lmul", "fmul", "dmul",
+	"idiv", "ldiv", "fdiv", "ddiv",
+	"irem", "lrem", "frem", "drem",
 	};
-
+	
 	// The numbers Java's shortcut instructions stand for, in their numbered order (ICONST_M1 is 2, DCONST_1 is 15).
 	static final Object[] shortcutNumbers = {
-		-1, 0, 1, 2, 3, 4, 5,
-		0L, 1L,
-		0.0f, 1.0f, 2.0f,
-		0.0, 1.0,
+	-1, 0, 1, 2, 3, 4, 5,
+	0L, 1L,
+	0.0f, 1.0f, 2.0f,
+	0.0, 1.0,
 	};
-
+	
 	// What each "compare against 0" if checks, in their numbered order (IFEQ is 153, IFLE is 158).
 	static final String[] ifTestNames = {
-		"isZero", "isNotZero", "isBelowZero", "isZeroOrAbove", "isAboveZero", "isZeroOrBelow",
+	"isZero", "isNotZero", "isBelowZero", "isZeroOrAbove", "isAboveZero", "isZeroOrBelow",
 	};
-
+	
 	// Joins two conditions: "both must be true". TRUE means "always", so it can be left out.
 	static Object and(Object firstCondition, Object secondCondition) {
 		if (firstCondition == Boolean.TRUE) {
@@ -100,7 +107,7 @@ public class EntityAnimationTranslator {
 		}
 		return new Operation("and", firstCondition, secondCondition);
 	}
-
+	
 	// Joins two conditions: "at least one is true". TRUE means "always", so the result is always too.
 	static Object or(Object firstCondition, Object secondCondition) {
 		if (firstCondition == Boolean.TRUE || secondCondition == Boolean.TRUE) {
@@ -108,7 +115,7 @@ public class EntityAnimationTranslator {
 		}
 		return new Operation("or", firstCondition, secondCondition);
 	}
-
+	
 	// Makes "whenTrue if condition, else whenFalse". If both papers have the same value, no choice is needed.
 	static Object choose(Object condition, Object whenTrue, Object whenFalse) {
 		if (Objects.equals(whenTrue, whenFalse)) {
@@ -116,7 +123,7 @@ public class EntityAnimationTranslator {
 		}
 		return new Operation("choose", condition, whenTrue, whenFalse);
 	}
-
+	
 	// How many layers of the state have a field with this name, e.g. "mainArm" is in 2: IllagerRenderState and ArmedEntityRenderState.
 	static int layersWithFieldName(Object entityRenderState, String fieldName) {
 		int layerCount = 0;
@@ -131,7 +138,7 @@ public class EntityAnimationTranslator {
 		}
 		return layerCount;
 	}
-
+	
 	// Reads a field inside a state value, e.g. "rightHandItemState" + "activeLayerCount" gives "rightHandItemState.activeLayerCount".
 	// If it gets a choose, it reads the field inside both branches and keeps the same condition.
 	static Object readFieldInsideStateValue(Operation stateValueOrChoose, String fieldName) throws Exception {
@@ -144,7 +151,33 @@ public class EntityAnimationTranslator {
 			Object whenFalse = readFieldInsideStateValue((Operation) stateValueOrChoose.inputs[2], fieldName);
 			return choose(stateValueOrChoose.inputs[0], whenTrue, whenFalse);
 		}
-		throw new Exception("read a field inside " + stateValueOrChoose.name + ": not yet");
+		return new Operation("field", stateValueOrChoose, fieldName);
+	}
+
+	// Reads a field of a part that a choose picks, e.g. choose(attackArm is left, leftArm, rightArm) + "xRot".
+	// Reads the field from both parts and keeps the same condition.
+	static Object readFromChosenPart(Object partOrChoose, String fieldName, FunctionBeingRead paper) throws Exception {
+		if (partOrChoose instanceof ModelPart part) {
+			return partValueOnPaper(paper, new PartField(part, fieldName));
+		}
+		Operation chooseOperation = (Operation) partOrChoose;
+		Object whenTrue = readFromChosenPart(chooseOperation.inputs[1], fieldName, paper);
+		Object whenFalse = readFromChosenPart(chooseOperation.inputs[2], fieldName, paper);
+		return choose(chooseOperation.inputs[0], whenTrue, whenFalse);
+	}
+
+	// Writes a field of a part that a choose picks, e.g. choose(attackArm is left, leftArm, rightArm) + "xRot" = formula.
+	// Each part gets the new formula only when it is the one picked, and keeps its old value otherwise.
+	static void writeIntoChosenPart(Object partOrChoose, String fieldName, Object formula, Object condition, FunctionBeingRead paper) throws Exception {
+		if (partOrChoose instanceof ModelPart part) {
+			PartField partField = new PartField(part, fieldName);
+			Object oldValue = partValueOnPaper(paper, partField);
+			paper.partValues.put(partField, choose(condition, formula, oldValue));
+			return;
+		}
+		Operation chooseOperation = (Operation) partOrChoose;
+		writeIntoChosenPart(chooseOperation.inputs[1], fieldName, formula, and(condition, chooseOperation.inputs[0]), paper);
+		writeIntoChosenPart(chooseOperation.inputs[2], fieldName, formula, and(condition, new Operation("not", chooseOperation.inputs[0])), paper);
 	}
 
 	// A part number on one paper: what the paper wrote, or if it wrote nothing, the number the part already has.
@@ -156,7 +189,7 @@ public class EntityAnimationTranslator {
 		partNumber.setAccessible(true);
 		return partNumber.get(partField.part());
 	}
-
+	
 	// Makes one paper out of two papers at the same instruction number: every slot whose value differs becomes a choose.
 	static FunctionBeingRead mergePapers(FunctionBeingRead firstPaper, FunctionBeingRead secondPaper) throws Exception {
 		FunctionBeingRead mergedPaper = new FunctionBeingRead(firstPaper);
@@ -178,7 +211,7 @@ public class EntityAnimationTranslator {
 		mergedPaper.pathCondition = or(firstPaper.pathCondition, secondPaper.pathCondition);
 		return mergedPaper;
 	}
-
+	
 	// Compares two whole numbers: −1, 0 or 1 if both are fixed, or a compare formula if one is a state value.
 	static Object compareNow(Object leftSide, Object rightSide) {
 		if (leftSide instanceof Operation || rightSide instanceof Operation) {
@@ -186,7 +219,7 @@ public class EntityAnimationTranslator {
 		}
 		return Integer.compare(((Number) leftSide).intValue(), ((Number) rightSide).intValue());
 	}
-
+	
 	// Finds a field by its name in a class, or in its parent, or the parent's parent…
 	static Field findField(String className, String fieldName) throws Exception {
 		Class<?> searchedClass = Class.forName(className.replace('/', '.'));
@@ -201,14 +234,14 @@ public class EntityAnimationTranslator {
 		}
 		throw new NoSuchFieldException(fieldName);
 	}
-
+	
 	// Opens one class's compiled code from client.jar, e.g. PigModel → its functions and instructions.
 	static ClassNode readClassCode(Class<?> codeClass) throws Exception {
 		ClassNode classCode = new ClassNode();
 		new ClassReader(codeClass.getName()).accept(classCode, 0);
 		return classCode;
 	}
-
+	
 	// Finds setupAnim in one class's code, or null if that class doesn't have its own.
 	static MethodNode findSetupAnimInClass(ClassNode classCode) {
 		for (MethodNode function : classCode.methods) {
@@ -219,7 +252,7 @@ public class EntityAnimationTranslator {
 		}
 		return null;
 	}
-
+	
 	// Finds the setupAnim a model really uses: its own, or the nearest parent's. Null if none.
 	static MethodNode findSetupAnim(Class<?> modelClass) throws Exception {
 		Class<?> searchedClass = modelClass;
@@ -232,7 +265,7 @@ public class EntityAnimationTranslator {
 		}
 		return null;
 	}
-
+	
 	// Finds every instruction in a function that writes into a part, e.g. "rightHindLeg.xRot = …".
 	static ArrayList<FieldInsnNode> findPartWrites(MethodNode function, HashSet<String> visitedFunctions) throws Exception {
 		ArrayList<FieldInsnNode> partWrites = new ArrayList<>();
@@ -256,7 +289,7 @@ public class EntityAnimationTranslator {
 		}
 		return partWrites;
 	}
-
+	
 	// Finds the code a call instruction runs, e.g. "AnimationUtils.animateZombieArms" → that function. Null if not found.
 	static MethodNode findCalledFunction(MethodInsnNode call) throws Exception {
 		if (!call.owner.startsWith("net/minecraft/")) {
@@ -273,7 +306,7 @@ public class EntityAnimationTranslator {
 		}
 		return null;
 	}
-
+	
 	// Finds the function a call means, in the form Java can run, e.g. "Model.root" → Java's handle on root(). Null if not found.
 	static Method findRealFunction(MethodInsnNode call) throws Exception {
 		Class<?> searchedClass = Class.forName(call.owner.replace('/', '.'));
@@ -287,7 +320,7 @@ public class EntityAnimationTranslator {
 		}
 		return null;
 	}
-
+	
 	// Lets Java run a call for real (only when no state values go in), e.g. model.root() → the real root part.
 	static Object runForReal(MethodInsnNode call, Object[] callInputs) throws Exception {
 		Method function = findRealFunction(call);
@@ -311,7 +344,7 @@ public class EntityAnimationTranslator {
 		Object[] inputsAfterObject = Arrays.copyOfRange(callInputs, 1, callInputs.length);
 		return function.invoke(objectCalledOn, inputsAfterObject);
 	}
-
+	
 	// Gives back the waiting paper with the least instruction number, so the papers ahead wait for it.
 	static FunctionBeingRead paperWithLeastInstructionNumber(ArrayList<FunctionBeingRead> waitingPapers) {
 		FunctionBeingRead paperWithLeast = waitingPapers.getFirst();
@@ -322,7 +355,7 @@ public class EntityAnimationTranslator {
 		}
 		return paperWithLeast;
 	}
-
+	
 	// Gives back another waiting paper at the same instruction number as scratchPaper, or null if there is none.
 	static FunctionBeingRead paperAtSameInstructionNumber(ArrayList<FunctionBeingRead> waitingPapers, FunctionBeingRead scratchPaper) {
 		for (FunctionBeingRead waitingPaper : waitingPapers) {
@@ -333,7 +366,7 @@ public class EntityAnimationTranslator {
 		}
 		return null;
 	}
-
+	
 	// At an if on a state value: a copy of the paper jumps to jumpTarget, this paper stays. Each gets its side of the condition.
 	static FunctionBeingRead splitPaper(FunctionBeingRead scratchPaper, Object jumpCondition, int jumpTarget) {
 		FunctionBeingRead jumpingPaper = new FunctionBeingRead(scratchPaper);
@@ -342,7 +375,7 @@ public class EntityAnimationTranslator {
 		scratchPaper.pathCondition = and(scratchPaper.pathCondition, new Operation("not", jumpCondition));
 		return jumpingPaper;
 	}
-
+	
 	// Reads a function top to bottom, turning its math into formulas. Its part moves get written into partValues.
 	// Returns what the function returns (a formula, a real thing, or null if it returns nothing).
 	static Object translateFunction(MethodNode function, Object[] functionInputs, Object entityRenderState, LinkedHashMap<PartField, Object> partValues) throws Exception {
@@ -387,6 +420,10 @@ public class EntityAnimationTranslator {
 				scratchPaper.formulaPieces.add(lastPiece);
 				continue;
 			}
+			if (instruction.getOpcode() == Opcodes.NEW) {
+				scratchPaper.formulaPieces.add(new BuiltObject());
+				continue;
+			}
 			if (instruction.getOpcode() == Opcodes.POP) {
 				scratchPaper.formulaPieces.removeLast();
 				continue;
@@ -409,6 +446,11 @@ public class EntityAnimationTranslator {
 			if (isListRead) {
 				Object position = scratchPaper.formulaPieces.removeLast();
 				Object list = scratchPaper.formulaPieces.removeLast();
+				boolean isRealListWithStateValuePosition = !(list instanceof Operation) && position instanceof Operation;
+				if (isRealListWithStateValuePosition) {
+					scratchPaper.formulaPieces.add(new Operation("pickFromList", list, position));
+					continue;
+				}
 				if (list instanceof Operation || position instanceof Operation) {
 					throw new Exception("list read with a state value: not yet");
 				}
@@ -460,6 +502,16 @@ public class EntityAnimationTranslator {
 				scratchPaper.formulaPieces.add(fixedNumberInstruction.cst);
 				continue;
 			}
+			if (instruction instanceof InvokeDynamicInsnNode lambdaInstruction && lambdaInstruction.bsmArgs[1] instanceof Handle lambdaTarget && Type.getArgumentTypes(lambdaInstruction.desc).length == 0) {
+				MethodNode lambdaCode = findCalledFunction(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, lambdaTarget.getOwner(), lambdaTarget.getName(), lambdaTarget.getDesc(), false));
+				if (lambdaCode == null) {
+					throw new Exception("lambda " + lambdaTarget.getName() + ": not found");
+				}
+				Object[] lambdaInputs = { new Operation("lambdaInput") };
+				Object lambdaFormula = translateFunction(lambdaCode, lambdaInputs, entityRenderState, scratchPaper.partValues);
+				scratchPaper.formulaPieces.add(new Operation("function", lambdaFormula));
+				continue;
+			}
 			if (instruction instanceof VarInsnNode slotInstruction) {
 				boolean isStoreIntoSlot = slotInstruction.getOpcode() >= Opcodes.ISTORE;
 				if (isStoreIntoSlot) {
@@ -484,6 +536,15 @@ public class EntityAnimationTranslator {
 						scratchPaper.formulaPieces.add(scratchPaper.partValues.get(partFieldBeingRead));
 						continue;
 					}
+				}
+				if (objectWhoseFieldIsRead instanceof BuiltObject builtObjectBeingRead) {
+					scratchPaper.formulaPieces.add(builtObjectBeingRead.fieldValues.get(fieldReadInstruction.name));
+					continue;
+				}
+				boolean isChooseOfParts = objectWhoseFieldIsRead instanceof Operation chosenPart && chosenPart.name.equals("choose") && chosenPart.inputs[1] instanceof ModelPart;
+				if (isChooseOfParts) {
+					scratchPaper.formulaPieces.add(readFromChosenPart(objectWhoseFieldIsRead, fieldReadInstruction.name, scratchPaper));
+					continue;
 				}
 				if (objectWhoseFieldIsRead instanceof Operation stateValueOrChoose) {
 					scratchPaper.formulaPieces.add(readFieldInsideStateValue(stateValueOrChoose, fieldReadInstruction.name));
@@ -622,18 +683,30 @@ public class EntityAnimationTranslator {
 				}
 				boolean mustBeReadStepByStep = false;
 				for (Object calledFunctionInput : calledFunctionInputs) {
-					if (calledFunctionInput instanceof Operation || calledFunctionInput == entityRenderState || calledFunctionInput instanceof ModelPart) {
+					if (calledFunctionInput instanceof Operation || calledFunctionInput == entityRenderState || calledFunctionInput instanceof ModelPart || calledFunctionInput instanceof BuiltObject) {
 						mustBeReadStepByStep = true;
 					}
 				}
 				Object returnedValue;
 				boolean isStaticCall = callInstruction.getOpcode() == Opcodes.INVOKESTATIC;
 				boolean onlyNumbersInAndOut = !callInstruction.desc.contains("L") && !callInstruction.desc.contains("[");
-				if (mustBeReadStepByStep && isStaticCall && onlyNumbersInAndOut) {
+				boolean isMathLibrary = callInstruction.owner.equals("net/minecraft/util/Mth") || !callInstruction.owner.startsWith("net/minecraft/");
+				if (mustBeReadStepByStep && isStaticCall && onlyNumbersInAndOut && isMathLibrary) {
 					String mathName = callInstruction.owner.substring(callInstruction.owner.lastIndexOf('/') + 1) + "." + callInstruction.name;
 					returnedValue = new Operation(mathName, calledFunctionInputs);
 				} else if (mustBeReadStepByStep) {
 					MethodNode calledFunction = findCalledFunction(callInstruction);
+					boolean givesBackSomething = Type.getReturnType(callInstruction.desc) != Type.VOID_TYPE;
+					boolean isAskingAStateValue = calledFunction == null && !isStaticCall && givesBackSomething && calledFunctionInputs[0] instanceof Operation;
+					if (isAskingAStateValue) {
+						String questionName = callInstruction.owner.substring(callInstruction.owner.lastIndexOf('/') + 1) + "." + callInstruction.name;
+						scratchPaper.formulaPieces.add(new Operation(questionName, calledFunctionInputs));
+						continue;
+					}
+					boolean isJavaOwnConstructor = calledFunction == null && callInstruction.name.equals("<init>");
+					if (isJavaOwnConstructor) {
+						continue;
+					}
 					if (calledFunction == null) {
 						throw new Exception("don't know " + callInstruction.owner + "." + callInstruction.name + " yet");
 					}
@@ -654,6 +727,13 @@ public class EntityAnimationTranslator {
 				if (objectWhoseFieldIsWritten instanceof ModelPart partBeingWritten) {
 					PartField partFieldBeingWritten = new PartField(partBeingWritten, fieldWriteInstruction.name);
 					scratchPaper.partValues.put(partFieldBeingWritten, formulaBeingWritten);
+				}
+				boolean isChooseOfParts = objectWhoseFieldIsWritten instanceof Operation chosenPart && chosenPart.name.equals("choose") && chosenPart.inputs[1] instanceof ModelPart;
+				if (isChooseOfParts) {
+					writeIntoChosenPart(objectWhoseFieldIsWritten, fieldWriteInstruction.name, formulaBeingWritten, Boolean.TRUE, scratchPaper);
+				}
+				if (objectWhoseFieldIsWritten instanceof BuiltObject builtObjectBeingWritten) {
+					builtObjectBeingWritten.fieldValues.put(fieldWriteInstruction.name, formulaBeingWritten);
 				}
 				continue;
 			}

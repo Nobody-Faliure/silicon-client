@@ -186,6 +186,10 @@ final class ClientWorld {
 		entities[id]?.headYaw = headYaw
 	}
 
+	func setVariant(id: Int, variantNumber: Int) {
+		entities[id]?.variantNumber = variantNumber
+	}
+
 	func removeEntities(ids: [Int]) {
 		for id in ids {
 			entities[id] = nil

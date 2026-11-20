@@ -31,6 +31,7 @@ final class ServerConnection {
 	var onEntityMoved: ((_ id: Int, _ step: SIMD3<Double>) -> Void)?
 	var onEntityTurned: ((_ id: Int, _ yaw: Float, _ pitch: Float) -> Void)?
 	var onHeadTurned: ((_ id: Int, _ headYaw: Float) -> Void)?
+	var onVariantSet: ((_ id: Int, _ variantNumber: Int) -> Void)?
 	var onEntityPlaced: ((_ id: Int, _ position: SIMD3<Double>) -> Void)?
 	var onEntitiesRemoved: ((_ ids: [Int]) -> Void)?
 	
@@ -166,7 +167,19 @@ final class ServerConnection {
 			_ = reader.readVarInt()
 			let registry = reader.readIdentifier()
 			let count = reader.readVarInt()
-			
+
+			if registry.hasSuffix("_variant") {
+				var names: [String] = []
+				for _ in 0..<count {
+					names.append(reader.readIdentifier())
+					if reader.readByte() == 1 {
+						_ = reader.readNetworkRoot()
+					}
+				}
+				EntityData.variantNames[registry] = names
+				break
+			}
+
 			guard registry == "minecraft:worldgen/biome" else { break }
 			
 			var biomes: [Biome] = []
@@ -361,6 +374,27 @@ final class ServerConnection {
 			let entityID = reader.readVarInt()
 			let headYaw = Float(reader.readByte()) * 360 / 256
 			DispatchQueue.main.async { self.onHeadTurned?(entityID, headYaw) }
+
+		case (.play, 0x63):							// set entity data
+			var reader = NBTReader(data: packet)
+			_ = reader.readVarInt()					// packet id
+			let entityID = reader.readVarInt()
+			while reader.remaining > 0 {
+				let slot = reader.readByte()			// which field this is; 255 = end of the list
+				if slot == 255 {
+					break
+				}
+				let typeNumber = reader.readVarInt()
+				let typeName = EntityData.dataTypes.first { $0.value == typeNumber }?.key ?? ""
+				if typeName.hasSuffix("_VARIANT") && !typeName.hasSuffix("_SOUND_VARIANT") {
+					let variantNumber = reader.readVarInt()
+					DispatchQueue.main.async { self.onVariantSet?(entityID, variantNumber) }
+					break
+				}
+				if !skipDataValue(typeName: typeName, reader: &reader) {
+					break
+				}
+			}
 			
 		case (.play, 0x23), (.play, 0x7d):			// exact entity position (sync / teleport)
 			var reader = NBTReader(data: packet)
@@ -511,6 +545,24 @@ final class ServerConnection {
 		})
 	}
 	
+	// Moves the reader past one entity data value we don't need, e.g. "BOOLEAN" is 1 byte.
+	// Gives false for a type it can't skip yet, so the packet code stops reading.
+	func skipDataValue(typeName: String, reader: inout NBTReader) -> Bool {
+		switch typeName {
+		case "BYTE", "BOOLEAN":
+			_ = reader.readByte()
+		case "INT", "POSE", "OPTIONAL_UNSIGNED_INT":
+			_ = reader.readVarInt()
+		case "FLOAT":
+			_ = reader.readFloat()
+		case "LONG":
+			_ = reader.readVarLong()
+		default:
+			return false
+		}
+		return true
+	}
+
 	func sendFinishConfiguration() {
 		var packet = Data()
 		

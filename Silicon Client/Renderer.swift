@@ -392,6 +392,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 			self?.clientWorld.turnHead(id: entityID, headYaw: headYaw)
 		}
 
+		serverConnection.onVariantSet = { [weak self] entityID, variantNumber in
+			self?.clientWorld.setVariant(id: entityID, variantNumber: variantNumber)
+		}
+
 		serverConnection.onEntityPlaced = { [weak self] entityID, position in
 			self?.clientWorld.placeEntity(id: entityID, at: position)
 		}

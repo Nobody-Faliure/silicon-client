@@ -16,6 +16,7 @@ import sun.reflect.ReflectionFactory;
 import net.minecraft.client.model.geom.EntityModelSet;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import java.util.List;
@@ -25,7 +26,10 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.AbstractBoatRenderer;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.network.syncher.EntityDataSerializer;
+import net.minecraft.network.syncher.EntityDataSerializers;
 
 public class EntityExtractor {
 	public static void main(String[] arguments) throws Exception {
@@ -76,10 +80,11 @@ public class EntityExtractor {
 					}
 				}
 			}
-			List<Model<?>> models = new ArrayList<>();
-			findModels(renderer, models);
-			for (Model<?> model : models) {
-				json.append("    {\"entity\": \"" + name + "\", \"kind\": \"" + model.getClass().getSimpleName() + "\", \"texture\": \"" + texture + "\", \"parts\": [\n");
+			LinkedHashMap<String, Model<?>> models = new LinkedHashMap<>();
+			findModels(renderer, "", models);
+			for (String choicePath : models.keySet()) {
+				Model<?> model = models.get(choicePath);
+				json.append("    {\"entity\": \"" + name + "\", \"choice\": \"" + choicePath + "\", \"kind\": \""+ model.getClass().getSimpleName() + "\", \"texture\": \"" + texture + "\", \"parts\": [\n");
 				List<ModelPart> parts = new ArrayList<>();
 				StringBuilder headYaw = new StringBuilder();
 				StringBuilder headPitch = new StringBuilder();
@@ -108,7 +113,23 @@ public class EntityExtractor {
 			}
 		}
 		json.setLength(json.length() - 2);
-		json.append("\n  ]\n}\n");
+		json.append("\n  ],\n  \"dataTypes\": {\n");
+		for (Field field : EntityDataSerializers.class.getFields()) {
+			if (field.getType() == EntityDataSerializer.class) {
+				int typeNumber = EntityDataSerializers.getSerializedId((EntityDataSerializer<?>) field.get(null));
+				json.append("    \"" + field.getName() + "\": " + typeNumber + ",\n");
+			}
+		}
+		json.setLength(json.length() - 2);
+		json.append("\n  },\n  \"variantDefaults\": {\n");
+		for (Field field : EntityDataSerializers.class.getFields()) {
+			try {
+				json.append("    \"" + field.getName() + "\": \"" + defaultVariant(field) + "\",\n");
+			} catch (Exception noDefault) {
+			}
+		}
+		json.setLength(json.length() - 2);
+		json.append("\n  }\n}\n");
 		Files.writeString(Path.of(arguments[0]), json.toString());
 	}
 
@@ -119,15 +140,16 @@ public class EntityExtractor {
 		return String.format(Locale.ROOT, "%.4f", value);
 	}
 
-	static void findModels(Object thing, List<Model<?>> models) throws Exception {
+	static void findModels(Object thing, String choicePath, LinkedHashMap<String, Model<?>> models) throws Exception {
 		if (thing instanceof Model<?> model) {
-			if (!models.contains(model)) {
-				models.add(model);
+			if (!models.containsValue(model)) {
+				models.putIfAbsent(choicePath, model);
 			}
 		}
 		if (thing instanceof Map<?, ?> map) {
-			for (Object value : map.values()) {
-				findModels(value, models);
+			for (Map.Entry<?, ?> entry : map.entrySet()) {
+				String entryKey = entry.getKey().toString().toLowerCase(Locale.ROOT);
+				findModels(entry.getValue(), joinKey(choicePath, entryKey), models);
 			}
 		}
 		if (thing instanceof EntityRenderer<?, ?> || thing instanceof Record) {
@@ -135,11 +157,36 @@ public class EntityExtractor {
 				for (Field field : kind.getDeclaredFields()) {
 					if (!Modifier.isStatic(field.getModifiers()) && !field.getType().isPrimitive()) {
 						field.setAccessible(true);
-						findModels(field.get(thing), models);
+						findModels(field.get(thing), joinKey(choicePath, field.getName()), models);
 					}
 				}
 			}
 		}
+	}
+
+	// Adds one more choice to the path, e.g. "cold" + "babyModel" gives "cold.babyModel".
+	static String joinKey(String choicePath, String nextChoice) {
+		if (choicePath.isEmpty()) {
+			return nextChoice;
+		}
+		return choicePath + "." + nextChoice;
+	}
+
+	// The default variant of one type, e.g. PIG_VARIANT gives "minecraft:temperate".
+	static String defaultVariant(Field typeField) throws Exception {
+		String declaredType = typeField.getGenericType().getTypeName();	// "…EntityDataSerializer<…Holder<…pig.PigVariant>>"
+		String variantClassName = declaredType.substring(declaredType.lastIndexOf('<') + 1, declaredType.indexOf('>'));
+		Class<?> variantsClass = Class.forName(variantClassName + "s");
+		ResourceKey<?> defaultKey;
+		try {
+			defaultKey = (ResourceKey<?>) variantsClass.getField("DEFAULT").get(null);
+		} catch (NoSuchFieldException notInVariantsClass) {
+			Class<?> mobClass = Class.forName(variantClassName.replace("Variant", ""));
+			Field mobDefaultField = mobClass.getDeclaredField("DEFAULT_VARIANT");
+			mobDefaultField.setAccessible(true);
+			defaultKey = (ResourceKey<?>) mobDefaultField.get(null);
+		}
+		return defaultKey.identifier().toString();
 	}
 
 	static void writePart(StringBuilder json, String name, ModelPart part, int parent, List<ModelPart> written) throws Exception {

@@ -14,7 +14,7 @@ extension Renderer {
 			var turn = entity.yaw - entity.previousYaw
 			turn -= 360 * (turn / 360).rounded()
 			let smoothYaw = entity.previousYaw + turn * Float(blend)
-			if let number = modelNumber(typeName: type.name) {
+			if let number = modelNumber(typeName: type.name, wantedChoices: ["adultModel"]) {
 				drawEntityModel(entity: entity, modelNumber: number, smooth: smooth, yaw: smoothYaw, with: renderEncoder, viewProjection: viewProjection)
 				continue
 			}
@@ -77,14 +77,28 @@ extension Renderer {
 		return rotationBelow + (rotationAbove - rotationBelow) * blendTowardRowAbove
 	}
 
-	// The first model made for this entity type, or nil if it has none (items, paintings…).
-	func modelNumber(typeName: String) -> Int? {
+	// Counts how many wanted words are in a model's label.
+	// e.g. label "models.cold.babyModel" with wanted ["cold", "babyModel"] gives 2.
+	func matchingChoices(choice: String, wantedChoices: [String]) -> Int {
+		let labelParts = choice.split(separator: ".").map(String.init)
+		return wantedChoices.filter { labelParts.contains($0) }.count
+	}
+
+	// The model of this entity type whose label has the most wanted words, or nil if it has none (items, paintings…).
+	// On a tie, the first one wins.
+	func modelNumber(typeName: String, wantedChoices: [String]) -> Int? {
+		var bestNumber: Int? = nil
+		var bestScore = -1
 		for number in 0..<EntityData.models.count {
 			if EntityData.models[number].entity == typeName {
-				return number
+				let score = matchingChoices(choice: EntityData.models[number].choice, wantedChoices: wantedChoices)
+				if score > bestScore {
+					bestNumber = number
+					bestScore = score
+				}
 			}
 		}
-		return nil
+		return bestNumber
 	}
 
 	// Draws one entity with its real model and picture.
@@ -93,7 +107,8 @@ extension Renderer {
 			return
 		}
 		let model = EntityData.models[modelNumber]
-		let picture = entityTexture(path: model.texture)
+		let variantTexture = EntityData.variantTexturePath(mob: model.entity, variantNumber: entity.variantNumber)
+		let picture = entityTexture(path: variantTexture ?? model.texture)
 		let place = moveMatrix(x: Float(smooth.x), y: Float(smooth.y), z: Float(smooth.z))
 		let facing = turnMatrix(angle: (180 - yaw) * .pi / 180, axis: SIMD3<Float>(0, 1, 0))
 		let flip = scaleMatrix(x: -1, y: -1, z: 1)

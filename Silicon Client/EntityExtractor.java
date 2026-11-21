@@ -86,6 +86,13 @@ public class EntityExtractor {
 					}
 				}
 			}
+			String babyTexture = texture;
+			try {
+				LivingEntityRenderState babyState = (LivingEntityRenderState) renderer.createRenderState();
+				babyState.isBaby = true;
+				babyTexture = ((LivingEntityRenderer) renderer).getTextureLocation(babyState).getPath();
+			} catch (Throwable error) {
+			}
 			LinkedHashMap<String, Model<?>> models = new LinkedHashMap<>();
 			layerTextures.clear();
 			findModels(renderer, "", models);
@@ -93,7 +100,7 @@ public class EntityExtractor {
 				Model<?> model = models.get(choicePath);
 				String modelTexture = layerTextures.getOrDefault(choicePath, "");
 				if (modelTexture.isEmpty()) {
-					modelTexture = texture;
+					modelTexture = choicePath.contains("babyModel") ? babyTexture : texture;
 				}
 				json.append("    {\"entity\": \"" + name + "\", \"choice\": \"" + choicePath + "\", \"kind\": \""+ model.getClass().getSimpleName() + "\", \"texture\": \"" + modelTexture + "\", \"parts\": [\n");
 				List<ModelPart> parts = new ArrayList<>();

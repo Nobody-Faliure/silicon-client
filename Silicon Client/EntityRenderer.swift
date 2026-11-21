@@ -20,6 +20,12 @@ extension Renderer {
 			}
 			if let number = modelNumber(typeName: type.name, wantedChoices: wantedChoices) {
 				drawEntityModel(entity: entity, modelNumber: number, smooth: smooth, yaw: smoothYaw, with: renderEncoder, viewProjection: viewProjection)
+				for layerName in layerNames(typeName: type.name) {
+					let layerNumber = modelNumber(typeName: type.name, wantedChoices: wantedChoices, labelStart: layerName + ".")
+					if let layerNumber, EntityData.models[layerNumber].texture != EntityData.models[number].texture {
+						drawEntityModel(entity: entity, modelNumber: layerNumber, smooth: smooth, yaw: smoothYaw, with: renderEncoder, viewProjection: viewProjection)
+					}
+				}
 				continue
 			}
 			renderEncoder.setRenderPipelineState(entityPipelineState)
@@ -90,11 +96,11 @@ extension Renderer {
 
 	// The model of this entity type whose label has the most wanted words, or nil if it has none (items, paintings…).
 	// On a tie, the first one wins.
-	func modelNumber(typeName: String, wantedChoices: [String]) -> Int? {
+	func modelNumber(typeName: String, wantedChoices: [String], labelStart: String = "") -> Int? {
 		var bestNumber: Int? = nil
 		var bestScore = -1
 		for number in 0..<EntityData.models.count {
-			if EntityData.models[number].entity == typeName {
+			if EntityData.models[number].entity == typeName && EntityData.models[number].choice.hasPrefix(labelStart) {
 				let score = matchingChoices(choice: EntityData.models[number].choice, wantedChoices: wantedChoices)
 				if score > bestScore {
 					bestNumber = number
@@ -105,14 +111,30 @@ extension Renderer {
 		return bestNumber
 	}
 
+	// The layers of one mob, e.g. "sheep" gives ["layers.0", "layers.1"]. Empty if it has none.
+	func layerNames(typeName: String) -> [String] {
+		var names: [String] = []
+		for model in EntityData.models where model.entity == typeName && model.choice.hasPrefix("layers.") {
+			let labelParts = model.choice.split(separator: ".")
+			let layerName = String(labelParts[0] + "." + labelParts[1])
+			if !names.contains(layerName) {
+				names.append(layerName)
+			}
+		}
+		return names
+	}
+
 	// Draws one entity with its real model and picture.
 	func drawEntityModel(entity: Entity, modelNumber: Int, smooth: SIMD3<Double>, yaw: Float, with renderEncoder: MTLRenderCommandEncoder, viewProjection: simd_float4x4) {
 		guard let mesh = entityMesh(modelNumber: modelNumber) else {
 			return
 		}
 		let model = EntityData.models[modelNumber]
-		let variantTexture = EntityData.variantTexturePath(mob: model.entity, variantNumber: entity.variantNumber)
-		let picture = entityTexture(path: variantTexture ?? model.texture)
+		var texturePath = model.texture
+		if !model.choice.hasPrefix("layers.") {
+			texturePath = EntityData.variantTexturePath(mob: model.entity, variantNumber: entity.variantNumber) ?? model.texture
+		}
+		let picture = entityTexture(path: texturePath)
 		let place = moveMatrix(x: Float(smooth.x), y: Float(smooth.y), z: Float(smooth.z))
 		let facing = turnMatrix(angle: (180 - yaw) * .pi / 180, axis: SIMD3<Float>(0, 1, 0))
 		let flip = scaleMatrix(x: -1, y: -1, z: 1)

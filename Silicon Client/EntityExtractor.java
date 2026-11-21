@@ -21,6 +21,9 @@ import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
@@ -30,6 +33,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.network.syncher.EntityDataSerializer;
 import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.client.renderer.entity.layers.RenderLayer;
 
 public class EntityExtractor {
 	public static void main(String[] arguments) throws Exception {
@@ -81,10 +85,15 @@ public class EntityExtractor {
 				}
 			}
 			LinkedHashMap<String, Model<?>> models = new LinkedHashMap<>();
+			layerTextures.clear();
 			findModels(renderer, "", models);
 			for (String choicePath : models.keySet()) {
 				Model<?> model = models.get(choicePath);
-				json.append("    {\"entity\": \"" + name + "\", \"choice\": \"" + choicePath + "\", \"kind\": \""+ model.getClass().getSimpleName() + "\", \"texture\": \"" + texture + "\", \"parts\": [\n");
+				String modelTexture = layerTextures.getOrDefault(choicePath, "");
+				if (modelTexture.isEmpty()) {
+					modelTexture = texture;
+				}
+				json.append("    {\"entity\": \"" + name + "\", \"choice\": \"" + choicePath + "\", \"kind\": \""+ model.getClass().getSimpleName() + "\", \"texture\": \"" + modelTexture + "\", \"parts\": [\n");
 				List<ModelPart> parts = new ArrayList<>();
 				StringBuilder headYaw = new StringBuilder();
 				StringBuilder headPitch = new StringBuilder();
@@ -140,7 +149,14 @@ public class EntityExtractor {
 		return String.format(Locale.ROOT, "%.4f", value);
 	}
 
+	// Each layer model's own texture, e.g. "layers.1.adultModel" → "textures/entity/sheep/sheep_wool.png".
+	static LinkedHashMap<String, String> layerTextures = new LinkedHashMap<>();
+	static Set<Object> alreadySearched = Collections.newSetFromMap(new IdentityHashMap<>());
+
 	static void findModels(Object thing, String choicePath, LinkedHashMap<String, Model<?>> models) throws Exception {
+		if (!alreadySearched.add(thing)) {
+			return;
+		}
 		if (thing instanceof Model<?> model) {
 			if (!models.containsValue(model)) {
 				models.putIfAbsent(choicePath, model);
@@ -152,12 +168,20 @@ public class EntityExtractor {
 				findModels(entry.getValue(), joinKey(choicePath, entryKey), models);
 			}
 		}
-		if (thing instanceof EntityRenderer<?, ?> || thing instanceof Record) {
+		if (thing instanceof List<?> list) {
+			for (int index = 0; index < list.size(); index++) {
+				findModels(list.get(index), joinKey(choicePath, String.valueOf(index)), models);
+			}
+		}
+		if (thing instanceof EntityRenderer<?, ?> || thing instanceof Record || thing instanceof RenderLayer<?, ?>) {
 			for (Class<?> kind = thing.getClass(); kind != null; kind = kind.getSuperclass()) {
 				for (Field field : kind.getDeclaredFields()) {
 					if (!Modifier.isStatic(field.getModifiers()) && !field.getType().isPrimitive()) {
 						field.setAccessible(true);
 						findModels(field.get(thing), joinKey(choicePath, field.getName()), models);
+						if (thing instanceof RenderLayer<?, ?> && field.get(thing) instanceof Model<?>) {
+							layerTextures.put(joinKey(choicePath, field.getName()), layerTexture(thing, field.getName()));
+						}
 					}
 				}
 			}
@@ -170,6 +194,19 @@ public class EntityExtractor {
 			return nextChoice;
 		}
 		return choicePath + "." + nextChoice;
+	}
+
+	// One model's texture inside a layer, e.g. SheepWoolLayer + "adultModel" gives "textures/entity/sheep/sheep_wool.png". "" if it has none.
+	static String layerTexture(Object layer, String modelFieldName) throws Exception {
+		for (Field field : layer.getClass().getDeclaredFields()) {
+			boolean isBabyTexture = field.getName().contains("BABY");
+			boolean isBabyModel = modelFieldName.contains("baby");
+			if (field.getType() == Identifier.class && Modifier.isStatic(field.getModifiers()) && isBabyTexture == isBabyModel) {
+				field.setAccessible(true);
+				return ((Identifier) field.get(null)).getPath();
+			}
+		}
+		return "";
 	}
 
 	// The default variant of one type, e.g. PIG_VARIANT gives "minecraft:temperate".

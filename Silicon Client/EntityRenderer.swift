@@ -14,7 +14,8 @@ extension Renderer {
 			var turn = entity.yaw - entity.previousYaw
 			turn -= 360 * (turn / 360).rounded()
 			let smoothYaw = entity.previousYaw + turn * Float(blend)
-			var wantedChoices = ["adultModel"]
+			let isBaby = EntityData.dataNumber(entity: entity, mob: type.name, name: "DATA_BABY_ID") == 1
+			var wantedChoices = [isBaby ? "babyModel" : "adultModel"]
 			if let modelWord = EntityData.variantModelWord(mob: type.name, variantNumber: entity.variantNumber) {
 				wantedChoices.append(modelWord)
 			}
@@ -132,7 +133,7 @@ extension Renderer {
 		let model = EntityData.models[modelNumber]
 		var texturePath = model.texture
 		if !model.choice.hasPrefix("layers.") {
-			texturePath = EntityData.variantTexturePath(mob: model.entity, variantNumber: entity.variantNumber) ?? model.texture
+			texturePath = EntityData.variantTexturePath(mob: model.entity, variantNumber: entity.variantNumber, isBaby: model.choice.contains("babyModel")) ?? model.texture
 		}
 		let picture = entityTexture(path: texturePath)
 		let place = moveMatrix(x: Float(smooth.x), y: Float(smooth.y), z: Float(smooth.z))

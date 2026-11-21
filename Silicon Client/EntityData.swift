@@ -46,6 +46,7 @@ struct EntitiesFile: Decodable {
 	let models: [EntityModel]
 	let dataTypes: [String: Int]   // type name → its number in this version, e.g. "PIG_VARIANT": 28
 	let variantDefaults: [String: String]   // type name → default variant, e.g. "PIG_VARIANT": "minecraft:temperate"
+	let slots: [String: [String: String]]   // mob → slot → name, e.g. "sheep" → "16" → "DATA_BABY_ID"
 }
 
 enum EntityData {
@@ -53,6 +54,7 @@ enum EntityData {
 	static var models: [EntityModel] = []
 	static var dataTypes: [String: Int] = [:]   // e.g. "PIG_VARIANT": 28; filled by load
 	static var variantDefaults: [String: String] = [:]   // filled by load
+	static var slots: [String: [String: String]] = [:]   // filled by load
 	static var loadedVariants: [String: EntityVariant] = [:]   // "pig/warm" → that file, so each file is read once
 	// This version's folder, e.g. ".../Versions/26.2". Set when load runs.
 	static var versionFolder: URL? = nil
@@ -79,6 +81,7 @@ enum EntityData {
 		models = entitiesFile.models
 		dataTypes = entitiesFile.dataTypes
 		variantDefaults = entitiesFile.variantDefaults
+		slots = entitiesFile.slots
 	}
 
 	// Reads one variant JSON file, e.g. mob "pig" + variantName "temperate" reads pig_variant/temperate.json.
@@ -109,12 +112,14 @@ enum EntityData {
 	}
 
 	// The texture file for this mob's variant, e.g. "textures/entity/pig/pig_warm.png". Nil for mobs without variants.
-	static func variantTexturePath(mob: String, variantNumber: Int?) -> String? {
+	static func variantTexturePath(mob: String, variantNumber: Int?, isBaby: Bool) -> String? {
 		guard let variantName = variantName(mob: mob, variantNumber: variantNumber) else {
 			return nil
 		}
 		let shortName = variantName.replacingOccurrences(of: "minecraft:", with: "")
-		guard let assetId = variant(mob: mob, variantName: shortName)?.assetId else {
+		let foundVariant = variant(mob: mob, variantName: shortName)
+		let babyOrAdultId = isBaby ? foundVariant?.babyAssetId : foundVariant?.assetId
+		guard let assetId = babyOrAdultId ?? foundVariant?.assetId else {
 			return nil
 		}
 		return "textures/" + assetId.replacingOccurrences(of: "minecraft:", with: "") + ".png"
@@ -127,5 +132,14 @@ enum EntityData {
 		}
 		let shortName = variantName.replacingOccurrences(of: "minecraft:", with: "")
 		return variant(mob: mob, variantName: shortName)?.model
+	}
+
+	// A number this mob got from the server, found by its name, e.g. "DATA_BABY_ID" gives 1 for a baby. Nil if never sent.
+	static func dataNumber(entity: Entity, mob: String, name: String) -> Int? {
+		let slotText = slots[mob]?.first { $0.value == name }?.key
+		guard let slotText, let slot = Int(slotText) else {
+			return nil
+		}
+		return entity.data[slot]
 	}
 }

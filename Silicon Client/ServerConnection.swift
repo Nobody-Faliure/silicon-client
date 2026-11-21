@@ -32,6 +32,7 @@ final class ServerConnection {
 	var onEntityTurned: ((_ id: Int, _ yaw: Float, _ pitch: Float) -> Void)?
 	var onHeadTurned: ((_ id: Int, _ headYaw: Float) -> Void)?
 	var onVariantSet: ((_ id: Int, _ variantNumber: Int) -> Void)?
+	var onDataSet: ((_ id: Int, _ slot: Int, _ number: Int) -> Void)?
 	var onEntityPlaced: ((_ id: Int, _ position: SIMD3<Double>) -> Void)?
 	var onEntitiesRemoved: ((_ ids: [Int]) -> Void)?
 	
@@ -389,7 +390,11 @@ final class ServerConnection {
 				if typeName.hasSuffix("_VARIANT") && !typeName.hasSuffix("_SOUND_VARIANT") {
 					let variantNumber = reader.readVarInt()
 					DispatchQueue.main.async { self.onVariantSet?(entityID, variantNumber) }
-					break
+					continue
+				}
+				if let number = readNumberValue(typeName: typeName, reader: &reader) {
+					DispatchQueue.main.async { self.onDataSet?(entityID, Int(slot), number) }
+					continue
 				}
 				if !skipDataValue(typeName: typeName, reader: &reader) {
 					break
@@ -547,15 +552,23 @@ final class ServerConnection {
 	
 	// Moves the reader past one entity data value we don't need, e.g. "BOOLEAN" is 1 byte.
 	// Gives false for a type it can't skip yet, so the packet code stops reading.
-	func skipDataValue(typeName: String, reader: inout NBTReader) -> Bool {
+	// Reads one value if it's a plain number, e.g. a baby flag gives 1. Nil for other kinds (nothing is read then).
+	func readNumberValue(typeName: String, reader: inout NBTReader) -> Int? {
 		switch typeName {
 		case "BYTE", "BOOLEAN":
-			_ = reader.readByte()
+			return Int(reader.readByte())
 		case "INT", "POSE", "OPTIONAL_UNSIGNED_INT", "DIRECTION", "BLOCK_STATE", "OPTIONAL_BLOCK_STATE", "HUMANOID_ARM",
 			"SNIFFER_STATE", "ARMADILLO_STATE", "COPPER_GOLEM_STATE", "WEATHERING_COPPER_STATE":
-			_ = reader.readVarInt()
+			return reader.readVarInt()
 		case _ where typeName.hasSuffix("_VARIANT") && typeName != "PAINTING_VARIANT":
-			_ = reader.readVarInt()
+			return reader.readVarInt()
+		default:
+			return nil
+		}
+	}
+
+	func skipDataValue(typeName: String, reader: inout NBTReader) -> Bool {
+		switch typeName {
 		case "FLOAT":
 			_ = reader.readFloat()
 		case "LONG":

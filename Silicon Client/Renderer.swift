@@ -395,6 +395,9 @@ final class Renderer: NSObject, MTKViewDelegate {
 		serverConnection.onVariantSet = { [weak self] entityID, variantNumber in
 			self?.clientWorld.setVariant(id: entityID, variantNumber: variantNumber)
 		}
+		serverConnection.onDataSet = { [weak self] entityID, slot, number in
+			self?.clientWorld.setData(id: entityID, slot: slot, number: number)
+		}
 
 		serverConnection.onEntityPlaced = { [weak self] entityID, position in
 			self?.clientWorld.placeEntity(id: entityID, at: position)

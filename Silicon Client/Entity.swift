@@ -14,4 +14,5 @@ struct Entity {
 	var walkSpeed: Float = 0               // 0 standing … 1 running; how big the leg swing is
 	var age: Int = 0                       // ticks since we first saw it; drives idle motion and keyframe timing
 	var variantNumber: Int? = nil          // index in this mob's variant list, e.g. 1 = temperate pig; nil until the server says
+	var data: [Int: Int] = [:]   // slot → number the server sent, e.g. 16 → 1 (baby), 18 → 0x1E (sheared, light blue)
 }

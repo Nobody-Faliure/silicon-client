@@ -190,6 +190,10 @@ final class ClientWorld {
 		entities[id]?.variantNumber = variantNumber
 	}
 
+	func setData(id: Int, slot: Int, number: Int) {
+		entities[id]?.data[slot] = number
+	}
+
 	func removeEntities(ids: [Int]) {
 		for id in ids {
 			entities[id] = nil

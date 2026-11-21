@@ -8,6 +8,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -33,6 +34,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.network.syncher.EntityDataSerializer;
 import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 
 public class EntityExtractor {
@@ -138,6 +140,17 @@ public class EntityExtractor {
 			}
 		}
 		json.setLength(json.length() - 2);
+		json.append("\n  },\n  \"slots\": {\n");
+		for (Field typeField : EntityTypes.class.getFields()) {
+			if (typeField.getType() == EntityType.class) {
+				String declaredType = typeField.getGenericType().getTypeName();	// "…EntityType<…sheep.Sheep>"
+				String mobClassName = declaredType.substring(declaredType.indexOf('<') + 1, declaredType.lastIndexOf('>'));
+				String name = BuiltInRegistries.ENTITY_TYPE.getKey((EntityType<?>) typeField.get(null)).getPath();
+				String slots = slotNames(Class.forName(mobClassName));
+				json.append("    \"" + name + "\": {" + slots.substring(0, slots.length() - 2) + "},\n");
+			}
+		}
+		json.setLength(json.length() - 2);
 		json.append("\n  }\n}\n");
 		Files.writeString(Path.of(arguments[0]), json.toString());
 	}
@@ -207,6 +220,21 @@ public class EntityExtractor {
 			}
 		}
 		return "";
+	}
+
+	// Every slot of one mob class and the classes above it, e.g. Sheep gives "16": "DATA_BABY_ID", "18": "DATA_WOOL_ID", …
+	static String slotNames(Class<?> mobClass) throws Exception {
+		StringBuilder slots = new StringBuilder();
+		for (Class<?> kind = mobClass; kind != null; kind = kind.getSuperclass()) {
+			for (Field field : kind.getDeclaredFields()) {
+				if (field.getType() == EntityDataAccessor.class && Modifier.isStatic(field.getModifiers())) {
+					field.setAccessible(true);
+					int slot = ((EntityDataAccessor<?>) field.get(null)).id();
+					slots.append("\"" + slot + "\": \"" + field.getName() + "\", ");
+				}
+			}
+		}
+		return slots.toString();
 	}
 
 	// The default variant of one type, e.g. PIG_VARIANT gives "minecraft:temperate".

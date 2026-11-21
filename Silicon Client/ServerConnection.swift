@@ -551,12 +551,46 @@ final class ServerConnection {
 		switch typeName {
 		case "BYTE", "BOOLEAN":
 			_ = reader.readByte()
-		case "INT", "POSE", "OPTIONAL_UNSIGNED_INT":
+		case "INT", "POSE", "OPTIONAL_UNSIGNED_INT", "DIRECTION", "BLOCK_STATE", "OPTIONAL_BLOCK_STATE", "HUMANOID_ARM",
+			"SNIFFER_STATE", "ARMADILLO_STATE", "COPPER_GOLEM_STATE", "WEATHERING_COPPER_STATE":
+			_ = reader.readVarInt()
+		case _ where typeName.hasSuffix("_VARIANT") && typeName != "PAINTING_VARIANT":
 			_ = reader.readVarInt()
 		case "FLOAT":
 			_ = reader.readFloat()
 		case "LONG":
 			_ = reader.readVarLong()
+		case "ROTATIONS", "VECTOR3":
+			_ = reader.readBytes(12)
+		case "QUATERNION":
+			_ = reader.readBytes(16)
+		case "BLOCK_POS":
+			_ = reader.readLong()
+		case "OPTIONAL_BLOCK_POS":
+			if reader.readByte() == 1 {
+				_ = reader.readLong()
+			}
+		case "OPTIONAL_LIVING_ENTITY_REFERENCE":
+			if reader.readByte() == 1 {
+				_ = reader.readBytes(16)
+			}
+		case "OPTIONAL_GLOBAL_POS":
+			if reader.readByte() == 1 {
+				_ = reader.readIdentifier()
+				_ = reader.readLong()
+			}
+		case "STRING":
+			_ = reader.readIdentifier()
+		case "VILLAGER_DATA":
+			_ = reader.readVarInt()
+			_ = reader.readVarInt()
+			_ = reader.readVarInt()
+		case "COMPONENT":
+			_ = reader.readNetworkRoot()
+		case "OPTIONAL_COMPONENT":
+			if reader.readByte() == 1 {
+				_ = reader.readNetworkRoot()
+			}
 		default:
 			return false
 		}

@@ -119,4 +119,13 @@ enum EntityData {
 		}
 		return "textures/" + assetId.replacingOccurrences(of: "minecraft:", with: "") + ".png"
 	}
+
+	// The model word for this mob's variant, e.g. "cold" for a cold pig. Nil when there is none.
+	static func variantModelWord(mob: String, variantNumber: Int?) -> String? {
+		guard let variantName = variantName(mob: mob, variantNumber: variantNumber) else {
+			return nil
+		}
+		let shortName = variantName.replacingOccurrences(of: "minecraft:", with: "")
+		return variant(mob: mob, variantName: shortName)?.model
+	}
 }

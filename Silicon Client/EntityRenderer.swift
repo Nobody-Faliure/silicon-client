@@ -14,7 +14,11 @@ extension Renderer {
 			var turn = entity.yaw - entity.previousYaw
 			turn -= 360 * (turn / 360).rounded()
 			let smoothYaw = entity.previousYaw + turn * Float(blend)
-			if let number = modelNumber(typeName: type.name, wantedChoices: ["adultModel"]) {
+			var wantedChoices = ["adultModel"]
+			if let modelWord = EntityData.variantModelWord(mob: type.name, variantNumber: entity.variantNumber) {
+				wantedChoices.append(modelWord)
+			}
+			if let number = modelNumber(typeName: type.name, wantedChoices: wantedChoices) {
 				drawEntityModel(entity: entity, modelNumber: number, smooth: smooth, yaw: smoothYaw, with: renderEncoder, viewProjection: viewProjection)
 				continue
 			}

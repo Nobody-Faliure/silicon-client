@@ -3,6 +3,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Objects;
@@ -122,6 +123,30 @@ public class EntityAnimationTranslator {
 			return whenTrue;
 		}
 		return new Operation("choose", condition, whenTrue, whenFalse);
+	}
+	
+	// One formula as JSON, e.g. fmul(walkAnimationPos, 0.6662) gives ["fmul", ["stateValue", "walkAnimationPos"], 0.6662].
+	static String formulaJson(Object formula, IdentityHashMap<Object, Integer> pieceNumbers, ArrayList<String> pieces) {
+		if (formula instanceof Operation operation) {
+			Integer pieceNumber = pieceNumbers.get(operation);
+			if (pieceNumber == null) {
+				StringBuilder json = new StringBuilder("[\"" + operation.name + "\"");
+				for (Object input : operation.inputs) {
+					json.append(", " + formulaJson(input, pieceNumbers, pieces));
+				}
+				pieces.add(json + "]");
+				pieceNumber = pieces.size() - 1;
+				pieceNumbers.put(operation, pieceNumber);
+			}
+			return "[\"piece\", " + pieceNumber + "]";
+		}
+		if (formula instanceof Number number && Double.isFinite(number.doubleValue())) {
+			return String.valueOf(number);
+		}
+		if (formula instanceof Boolean) {
+			return String.valueOf(formula);
+		}
+		return "\"" + formula + "\"";
 	}
 	
 	// How many layers of the state have a field with this name, e.g. "mainArm" is in 2: IllagerRenderState and ArmedEntityRenderState.

@@ -341,7 +341,7 @@ final class ServerConnection {
 				_ = reader.readBytes(5)
 				if movementHeader & 4 != 0 { _ = reader.readVarInt() }
 			}
-			let pitch = Float(reader.readByte()) * 360 / 256
+			let pitch = Float(Int8(bitPattern: reader.readByte())) * 360 / 256
 			let yaw = Float(reader.readByte()) * 360 / 256
 			let headYaw = Float(reader.readByte()) * 360 / 256
 			DispatchQueue.main.async {
@@ -357,7 +357,7 @@ final class ServerConnection {
 			DispatchQueue.main.async { self.onEntityMoved?(entityID, step) }
 			if hasRotation {
 				let yaw = Float(reader.readByte()) * 360 / 256
-				let pitch = Float(reader.readByte()) * 360 / 256
+				let pitch = Float(Int8(bitPattern: reader.readByte())) * 360 / 256
 				DispatchQueue.main.async { self.onEntityTurned?(entityID, yaw, pitch) }
 			}
 
@@ -366,7 +366,7 @@ final class ServerConnection {
 			_ = reader.readVarInt()					// packet id
 			let entityID = reader.readVarInt()
 			let yaw = Float(reader.readByte()) * 360 / 256
-			let pitch = Float(reader.readByte()) * 360 / 256
+			let pitch = Float(Int8(bitPattern: reader.readByte())) * 360 / 256
 			DispatchQueue.main.async { self.onEntityTurned?(entityID, yaw, pitch) }
 			
 		case (.play, 0x53):							// turn head

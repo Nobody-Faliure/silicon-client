@@ -36,6 +36,7 @@ import net.minecraft.network.syncher.EntityDataSerializer;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
+import org.objectweb.asm.tree.MethodNode;
 
 public class EntityExtractor {
 	public static void main(String[] arguments) throws Exception {
@@ -107,6 +108,22 @@ public class EntityExtractor {
 				StringBuilder headYaw = new StringBuilder();
 				StringBuilder headPitch = new StringBuilder();
 				writePart(json, "root", model.root(), -1, parts);
+				LinkedHashMap<EntityAnimationTranslator.PartField, Object> partValues = new LinkedHashMap<>();
+				try {
+					Object state = renderer.createRenderState();
+					MethodNode setupAnim = EntityAnimationTranslator.findSetupAnim(model.getClass());
+					EntityAnimationTranslator.translateFunction(setupAnim, new Object[] {model, state}, state, partValues);
+				} catch (Throwable error) {
+				}
+				// Turns the hash map into JSON, e.g. [2, "xRot", ["fmul", …]] means "part 2's xRot = this formula".
+				StringBuilder movesJson = new StringBuilder();
+				IdentityHashMap<Object, Integer> pieceNumbers = new IdentityHashMap<>();
+				ArrayList<String> pieces = new ArrayList<>();
+				for (EntityAnimationTranslator.PartField partAndField : partValues.keySet()) {
+					int partNumber = parts.indexOf(partAndField.part());
+					String formulaText = EntityAnimationTranslator.formulaJson(partValues.get(partAndField), pieceNumbers, pieces);
+					movesJson.append("[" + partNumber + ", \"" + partAndField.field() + "\", " + formulaText + "], ");
+				}
 				if (renderer.createRenderState() instanceof LivingEntityRenderState state) {
 					for (int angle = -90; angle <= 90; angle += 10) {
 						state.yRot = angle;
@@ -127,7 +144,11 @@ public class EntityExtractor {
 					}
 				}
 				json.setLength(json.length() - 2);
-				json.append("\n    ], \"headYaw\": [" + headYaw + "], \"headPitch\": [" + headPitch + "]},\n");
+				if (movesJson.length() > 0) {
+					movesJson.setLength(movesJson.length() - 2);
+				}
+				String piecesJson = String.join(", ", pieces);
+				json.append("\n    ], \"headYaw\": [" + headYaw + "], \"headPitch\": [" + headPitch + "], \"pieces\": [" + piecesJson + "], \"animation\": [" + movesJson + "]},\n");
 			}
 		}
 		json.setLength(json.length() - 2);

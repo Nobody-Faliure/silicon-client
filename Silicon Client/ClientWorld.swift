@@ -164,22 +164,29 @@ final class ClientWorld {
 		var entity = Entity(id: id, typeID: typeID, position: position, previousPosition: position)
 		entity.yaw = yaw
 		entity.previousYaw = yaw
+		entity.targetYaw = yaw
 		entity.pitch = pitch
+		entity.targetPitch = pitch
 		entity.headYaw = headYaw
 		entities[id] = entity
 	}
 
 	func moveEntity(id: Int, by step: SIMD3<Double>) {
-		entities[id]?.position += step
+		guard let entity = entities[id] else { return }
+		let start = entity.targetPosition ?? entity.position
+		entities[id]?.targetPosition = start + step
+		entities[id]?.stepsLeft = 3
 	}
 
 	func placeEntity(id: Int, at position: SIMD3<Double>) {
-		entities[id]?.position = position
+		entities[id]?.targetPosition = position
+		entities[id]?.stepsLeft = 3
 	}
 
 	func turnEntity(id: Int, yaw: Float, pitch: Float) {
-		entities[id]?.yaw = yaw
-		entities[id]?.pitch = pitch
+		entities[id]?.targetYaw = yaw
+		entities[id]?.stepsLeft = 3
+		entities[id]?.targetPitch = pitch
 	}
 
 	func turnHead(id: Int, headYaw: Float) {
@@ -204,6 +211,17 @@ final class ClientWorld {
 		for (id, entity) in entities {
 			entities[id]?.previousPosition = entity.position
 			entities[id]?.previousYaw = entity.yaw
+			if entity.stepsLeft > 0, let target = entity.targetPosition {
+				let stepsLeft = Double(entity.stepsLeft)
+				entities[id]?.position = entity.position + (target - entity.position) / stepsLeft
+			}
+			if entity.stepsLeft > 0 {
+				var turn = entity.targetYaw - entity.yaw
+				turn -= 360 * (turn / 360).rounded()
+				entities[id]?.yaw = entity.yaw + turn / Float(entity.stepsLeft)
+				entities[id]?.pitch = entity.pitch + (entity.targetPitch - entity.pitch) / Float(entity.stepsLeft)
+				entities[id]?.stepsLeft -= 1
+			}
 			entities[id]?.age += 1
 		}
 	}

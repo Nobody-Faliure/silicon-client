@@ -8,6 +8,10 @@ struct Entity {
 	var previousPosition: SIMD3<Double>  // where it was one tick ago; drawing slides between the two
 	var yaw: Float = 0                     // which way the body faces, in degrees
 	var previousYaw: Float = 0             // which way it faced one tick ago; drawing slides between the two
+	var targetPosition: SIMD3<Double>? = nil   // where the server says it should end up; nil = not sliding
+	var targetYaw: Float = 0                   // which way it should end up facing
+	var targetPitch: Float = 0                 // how far it should end up looking up/down
+	var stepsLeft: Int = 0                     // ticks left in the slide, 3 → 2 → 1 → 0 (done)
 	var pitch: Float = 0                   // looking up/down, in degrees
 	var headYaw: Float = 0                 // which way the head faces (can differ from the body)
 	var walkPosition: Float = 0            // how far it has walked, in steps; drives the leg swing (like vanilla)
